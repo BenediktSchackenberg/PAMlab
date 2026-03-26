@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pamlab"
+version = "0.1.0"
+description = "A lab environment for testing and validating Linux PAM (Pluggable Authentication Modules) configurations"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+pamlab = "pamlab.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
