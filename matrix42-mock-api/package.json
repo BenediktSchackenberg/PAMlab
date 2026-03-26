@@ -1,0 +1,8 @@
+{
+  "name": "matrix42-mock-api",
+  "version": "1.0.0",
+  "description": "Matrix42 ESM API Mock Server for PAMlab",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": { "express": "^4.18.2", "cors": "^2.8.5", "uuid": "^9.0.0" }
+}

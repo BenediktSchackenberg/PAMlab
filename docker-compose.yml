@@ -1,0 +1,69 @@
+version: 2
+services:
+  fudo-mock:
+    build:
+      context: ./fudo-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-fudo
+    ports:
+      - "8443:8443"
+    environment:
+      - PORT=8443
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8443/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  matrix42-mock:
+    build:
+      context: ./matrix42-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-matrix42
+    ports:
+      - "8444:8444"
+    environment:
+      - PORT=8444
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8444/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ad-mock:
+    build:
+      context: ./ad-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-ad
+    ports:
+      - "8445:8445"
+    environment:
+      - PORT=8445
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8445/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  studio:
+    build:
+      context: ./pamlab-studio
+      dockerfile: Dockerfile
+    container_name: pamlab-studio
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_FUDO_URL=http://localhost:8443
+      - VITE_M42_URL=http://localhost:8444
+      - VITE_AD_URL=http://localhost:8445
+    depends_on:
+      fudo-mock:
+        condition: service_healthy
+      matrix42-mock:
+        condition: service_healthy
+      ad-mock:
+        condition: service_healthy
+    restart: unless-stopped

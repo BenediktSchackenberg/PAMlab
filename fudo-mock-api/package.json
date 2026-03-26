@@ -1,0 +1,14 @@
+{
+  "name": "fudo-mock-api",
+  "version": "1.0.0",
+  "description": "Mock Server für Fudo PAM API v2 (Entwicklung & Testing)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "uuid": "^10.0.0"
+  }
+}
