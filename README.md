@@ -248,10 +248,10 @@ Simulates [Fudo Enterprise](https://www.fudosecurity.com/) PAM API v2 with **70+
 
 ### 📋 Matrix42 ESM API (Port 8444)
 
-Simulates [Matrix42](https://www.matrix42.com/) Enterprise Service Management API:
+Simulates [Matrix42](https://www.matrix42.com/) Enterprise Service Management API with **88 endpoints**:
 
 <details>
-<summary><b>All Endpoints</b></summary>
+<summary><b>Authentication & Core Data</b></summary>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -264,13 +264,105 @@ Simulates [Matrix42](https://www.matrix42.com/) Enterprise Service Management AP
 | POST | `/m42Services/api/data/objects/query` | Query objects with filters |
 | GET | `/m42Services/api/meta/datadefinitions` | List data definitions |
 | GET | `/m42Services/api/meta/datadefinitions/:ddName` | Get DD schema |
+
+**Data Definitions:** SPSUserClassBase, SPSAssetClassBase, SPSSoftwareType, SPSActivityClassBase, SPSScCategoryClassBase
+</details>
+
+<details>
+<summary><b>Users / Employees</b> — 16 endpoints</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/m42Services/api/users` | List employees (filter by department, status, search) |
+| GET | `/m42Services/api/users/:id` | Get employee detail |
+| POST | `/m42Services/api/users` | Create employee |
+| PUT | `/m42Services/api/users/:id` | Update employee |
+| DELETE | `/m42Services/api/users/:id` | Deactivate employee |
+| GET | `/m42Services/api/users/:id/assets` | List assigned devices |
+| POST | `/m42Services/api/users/:id/assets` | Assign device to user |
+| DELETE | `/m42Services/api/users/:id/assets/:assetId` | Unassign device |
+| GET | `/m42Services/api/users/:id/groups` | List AD group memberships |
+| POST | `/m42Services/api/users/:id/groups` | Request group membership |
+| GET | `/m42Services/api/users/:id/tickets` | List user's tickets |
+| GET | `/m42Services/api/users/:id/software` | List installed software |
+| POST | `/m42Services/api/users/:id/onboard` | Trigger onboarding workflow |
+| POST | `/m42Services/api/users/:id/offboard` | Trigger offboarding workflow |
+| GET | `/m42Services/api/users/:id/access-history` | Access provisioning history |
+</details>
+
+<details>
+<summary><b>Assets / Devices</b> — 14 endpoints</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/m42Services/api/assets` | List assets (filter by type, status, location) |
+| GET | `/m42Services/api/assets/:id` | Get asset detail |
+| POST | `/m42Services/api/assets` | Register new asset |
+| PUT | `/m42Services/api/assets/:id` | Update asset |
+| DELETE | `/m42Services/api/assets/:id` | Retire asset |
+| GET | `/m42Services/api/assets/:id/software` | List installed software |
+| POST | `/m42Services/api/assets/:id/software` | Deploy software |
+| DELETE | `/m42Services/api/assets/:id/software/:softwareId` | Remove software |
+| GET | `/m42Services/api/assets/:id/user` | Get assigned user |
+| POST | `/m42Services/api/assets/:id/assign` | Assign to user |
+| POST | `/m42Services/api/assets/:id/unassign` | Unassign from user |
+| GET | `/m42Services/api/assets/:id/compliance` | Compliance status |
+| GET | `/m42Services/api/assets/:id/history` | Asset lifecycle history |
+</details>
+
+<details>
+<summary><b>Tickets / Service Desk</b> — 13 endpoints</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/m42Services/api/tickets` | List tickets (filter by status, priority, category) |
+| GET | `/m42Services/api/tickets/:id` | Get ticket detail |
+| POST | `/m42Services/api/tickets` | Create ticket |
+| PUT | `/m42Services/api/tickets/:id` | Update ticket |
+| DELETE | `/m42Services/api/tickets/:id` | Close/cancel ticket |
+| POST | `/m42Services/api/tickets/:id/assign` | Assign to agent |
+| POST | `/m42Services/api/tickets/:id/comment` | Add comment |
+| GET | `/m42Services/api/tickets/:id/comments` | List comments |
+| POST | `/m42Services/api/tickets/:id/resolve` | Resolve ticket |
+| POST | `/m42Services/api/tickets/:id/reopen` | Reopen ticket |
+| POST | `/m42Services/api/tickets/:id/escalate` | Escalate ticket |
+| GET | `/m42Services/api/tickets/stats` | Ticket statistics |
+</details>
+
+<details>
+<summary><b>Provisioning Workflows</b> — 9 endpoints (key for Fudo/AD integration)</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/m42Services/api/provisioning/workflows` | Create workflow (onboarding/offboarding/access-change) |
+| GET | `/m42Services/api/provisioning/workflows` | List workflows |
+| GET | `/m42Services/api/provisioning/workflows/:id` | Get workflow detail with steps |
+| POST | `/m42Services/api/provisioning/workflows/:id/execute` | Execute next step |
+| POST | `/m42Services/api/provisioning/workflows/:id/cancel` | Cancel workflow |
+| GET | `/m42Services/api/provisioning/workflows/:id/steps` | Get workflow steps |
+| POST | `/m42Services/api/provisioning/workflows/:id/steps/:stepId/complete` | Mark step complete |
+| POST | `/m42Services/api/provisioning/workflows/:id/steps/:stepId/fail` | Mark step failed |
+</details>
+
+<details>
+<summary><b>Software Catalog, Reports, Webhooks & Approvals</b></summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/m42Services/api/software` | Software catalog |
+| GET | `/m42Services/api/software/:id` | Software detail |
+| GET | `/m42Services/api/software/:id/installations` | Where installed |
+| GET | `/m42Services/api/software/:id/licenses` | License info |
+| GET | `/m42Services/api/reports/inventory` | Asset inventory summary |
+| GET | `/m42Services/api/reports/compliance` | Compliance overview |
+| GET | `/m42Services/api/reports/licenses` | License usage |
+| GET | `/m42Services/api/reports/user-access` | User access matrix |
+| GET | `/m42Services/api/reports/provisioning` | Provisioning activity |
 | POST/GET/DELETE | `/m42Services/api/webhooks` | Webhook management |
 | POST/GET | `/m42Services/api/access-requests` | Approval workflow |
 | POST | `/m42Services/api/access-requests/:id/approve` | Approve |
 | POST | `/m42Services/api/access-requests/:id/deny` | Deny |
 | POST | `/m42Services/api/access-requests/:id/revoke` | Revoke |
-
-**Data Definitions:** SPSUserClassBase (employees), SPSAssetClassBase (devices), SPSSoftwareType, SPSActivityClassBase (tickets), SPSScCategoryClassBase (categories)
 </details>
 
 ---
