@@ -14,6 +14,14 @@ const store = {
   webhooks: [],
   accessRequests: [...seed.accessRequests],
   dataDefinitions: seed.dataDefinitions,
+  // New collections
+  assetAssignments: [...seed.assetAssignments],
+  softwareInstallations: [...seed.softwareInstallations],
+  ticketComments: [...seed.ticketComments],
+  provisioningWorkflows: [...seed.provisioningWorkflows],
+  workflowSteps: [...seed.workflowSteps],
+  userGroupMappings: [...seed.userGroupMappings],
+  assetCompliance: [...seed.assetCompliance],
 };
 
 module.exports = store;
