@@ -553,15 +553,95 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
+## 🔗 Pipeline Engine — Modular Action Chains
+
+> **The core concept:** PAMlab is not just mock APIs — it's a **modular pipeline builder** for enterprise access management.
+
+Every organization connects systems differently. PAMlab lets you **define, test, and debug** any combination:
+
+```yaml
+# Example: Onboarding with temporary server access
+name: "Temporary Admin Access (4 hours)"
+trigger:
+  source: matrix42          # or: jira, servicenow, remedy
+  event: access-request.created
+
+steps:
+  - name: "Wait for Approval"
+    system: matrix42
+    action: access-requests.approve
+    wait_for: manual
+
+  - name: "Add to AD Group (timed)"
+    system: active-directory
+    action: groups.add-member-timed
+    params:
+      group: "GRP-RDP-Admins"
+      user: "{{ trigger.user }}"
+      duration: "4h"              # ← Temporary! Auto-revokes after 4 hours
+
+  - name: "Sync Fudo PAM"
+    system: fudo-pam
+    action: user-directory.sync
+
+  - name: "Verify Access"
+    system: fudo-pam
+    action: groups.verify-member
+    assert: true
+
+  - name: "Create Audit Trail"
+    system: matrix42
+    action: tickets.create
+
+rollback:                         # ← If anything fails, undo everything
+  - system: active-directory
+    action: groups.remove-member
+  - system: matrix42
+    action: tickets.create-failure
+```
+
+### Mix and Match Any System
+
+```
+┌─── Frontends ───┐     ┌── Directory ──┐     ┌──── PAM ────┐
+│ Matrix42         │     │ Active Dir.   │     │ Fudo PAM    │
+│ Jira SM          │────►│ Azure AD      │────►│ CyberArk    │
+│ ServiceNow       │     │ LDAP          │     │ BeyondTrust │
+│ BMC Remedy       │     └───────────────┘     └─────────────┘
+└──────────────────┘           │
+                               ▼
+                    ┌── Execution ──────┐
+                    │ PowerShell        │
+                    │ Python            │
+                    │ Pipeline Engine   │
+                    └───────────────────┘
+```
+
+### Key Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| ⏰ **Timed Access** | Grant access for 4h, 8h, 30d — auto-revokes when expired |
+| 🔄 **Rollback** | If any step fails, all previous steps are automatically undone |
+| 🧩 **Pluggable Connectors** | Add new systems without changing the engine |
+| 📋 **Pipeline Templates** | Pre-built workflows for common scenarios |
+| 🐛 **Step-by-Step Debug** | Pause after each step, inspect variables, continue |
+| 🔀 **Any Combination** | Matrix42→AD→Fudo, JSM→AzureAD→CyberArk, SNOW→AD→Fudo... |
+
+> See [Epic #5](https://github.com/BenediktSchackenberg/PAMlab/issues/5) for the full Pipeline Engine specification.
+
+---
+
 ## 🗺️ Roadmap
 
-PAMlab is growing! Future mock APIs for additional ITSM platforms:
+PAMlab is growing! The Pipeline Engine and additional ITSM platforms:
 
-| Epic | System | Port | Status |
-|------|--------|------|--------|
-| [#2](https://github.com/BenediktSchackenberg/PAMlab/issues/2) | 🎫 **Jira Service Management** — Atlassian JSM (incidents, approvals, assets) | `8446` | Planned |
-| [#3](https://github.com/BenediktSchackenberg/PAMlab/issues/3) | 🔧 **ServiceNow** — Table API, CMDB, change management | `8447` | Planned |
-| [#4](https://github.com/BenediktSchackenberg/PAMlab/issues/4) | 🏢 **BMC Remedy / Helix ITSM** — Incidents, changes, CMDB | `8448` | Planned |
+| Epic | Component | Description | Status |
+|------|-----------|-------------|--------|
+| [#5](https://github.com/BenediktSchackenberg/PAMlab/issues/5) | 🔗 **Pipeline Engine** | Modular action chain builder — the core of PAMlab | **Next Up** |
+| [#2](https://github.com/BenediktSchackenberg/PAMlab/issues/2) | 🎫 **Jira Service Management** | Atlassian JSM mock (incidents, approvals, assets) — Port `8446` | Planned |
+| [#3](https://github.com/BenediktSchackenberg/PAMlab/issues/3) | 🔧 **ServiceNow** | Table API, CMDB, change management — Port `8447` | Planned |
+| [#4](https://github.com/BenediktSchackenberg/PAMlab/issues/4) | 🏢 **BMC Remedy / Helix** | Incidents, changes, CMDB — Port `8448` | Planned |
 
 > Want another ITSM system? [Open an issue!](https://github.com/BenediktSchackenberg/PAMlab/issues/new)
 
