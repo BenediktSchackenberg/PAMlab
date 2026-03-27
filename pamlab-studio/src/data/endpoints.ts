@@ -43,4 +43,45 @@ export const apiEndpoints: ApiEndpointGroup[] = [
       { method: 'POST', path: '/api/users/{username}/reset-password', description: 'Reset password', parameters: [{ name: 'username', type: 'string', required: true, description: 'Username' }, { name: 'newPassword', type: 'string', required: true, description: 'New password' }] },
     ],
   },
+  {
+    api: 'ServiceNow ITSM',
+    baseUrl: 'http://localhost:8447',
+    endpoints: [
+      { method: 'GET', path: '/health', description: 'Health check', exampleResponse: { status: 'ok', service: 'servicenow-mock-api' } },
+      // Authentication
+      { method: 'POST', path: '/api/now/auth/token', description: 'Get auth token (Basic Auth or username/password)', parameters: [{ name: 'username', type: 'string', required: true, description: 'Username' }, { name: 'password', type: 'string', required: true, description: 'Password' }], exampleRequest: { username: 'admin', password: 'admin' }, exampleResponse: { result: { token: 'eyJ...', expires_in: 3600 } } },
+      // Table API — Incidents
+      { method: 'GET', path: '/api/now/table/incident', description: 'List incidents (supports sysparm_query, sysparm_fields, sysparm_limit, sysparm_offset)', exampleResponse: { result: [{ sys_id: 'abc123', number: 'INC0001', short_description: 'DB server down', priority: 1 }] } },
+      { method: 'GET', path: '/api/now/table/incident/{sys_id}', description: 'Get incident by sys_id', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id (32-char hex)' }], exampleResponse: { result: { sys_id: 'abc123', number: 'INC0001', state: 1 } } },
+      { method: 'POST', path: '/api/now/table/incident', description: 'Create incident', parameters: [{ name: 'short_description', type: 'string', required: true, description: 'Short description' }, { name: 'impact', type: 'number', required: false, description: 'Impact (1=High, 2=Medium, 3=Low)' }, { name: 'urgency', type: 'number', required: false, description: 'Urgency (1=High, 2=Medium, 3=Low)' }, { name: 'assignment_group', type: 'string', required: false, description: 'Assignment group' }], exampleRequest: { short_description: 'Fudo PAM anomaly detected', description: 'Unusual session pattern from svc-integration', impact: 1, urgency: 1, category: 'Security' } },
+      { method: 'PUT', path: '/api/now/table/incident/{sys_id}', description: 'Update incident', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }], exampleRequest: { state: 2, assigned_to: 'b.wilson' } },
+      { method: 'DELETE', path: '/api/now/table/incident/{sys_id}', description: 'Delete incident', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }] },
+      // Incident convenience
+      { method: 'POST', path: '/api/now/incident/resolve/{sys_id}', description: 'Resolve incident', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }, { name: 'close_notes', type: 'string', required: true, description: 'Resolution notes' }], exampleRequest: { close_notes: 'Root cause identified and fixed' } },
+      { method: 'POST', path: '/api/now/incident/close/{sys_id}', description: 'Close incident', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }, { name: 'close_code', type: 'string', required: true, description: 'Close code' }], exampleRequest: { close_code: 'Solved (Permanently)', close_notes: 'Confirmed fix deployed' } },
+      { method: 'GET', path: '/api/now/incident/stats', description: 'Incident statistics by priority and state', exampleResponse: { result: { total: 6, by_priority: { 1: 1, 2: 2, 3: 2, 4: 1 } } } },
+      // Table API — Change Requests
+      { method: 'GET', path: '/api/now/table/change_request', description: 'List change requests', exampleResponse: { result: [{ sys_id: 'def456', number: 'CHG0001', type: 'Normal' }] } },
+      { method: 'POST', path: '/api/now/table/change_request', description: 'Create change request', parameters: [{ name: 'short_description', type: 'string', required: true, description: 'Short description' }, { name: 'type', type: 'string', required: false, description: 'Normal/Standard/Emergency' }, { name: 'assignment_group', type: 'string', required: false, description: 'Assignment group' }], exampleRequest: { short_description: 'Upgrade Fudo PAM to v6.2', type: 'Normal', description: 'Scheduled upgrade with new features', risk: 'Moderate' } },
+      // Change convenience
+      { method: 'POST', path: '/api/now/change/approve/{sys_id}', description: 'Approve change request (CAB simulation)', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }], exampleRequest: { approval_notes: 'CAB approved — low risk' } },
+      { method: 'POST', path: '/api/now/change/reject/{sys_id}', description: 'Reject change request', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }], exampleRequest: { rejection_reason: 'Insufficient testing evidence' } },
+      { method: 'POST', path: '/api/now/change/implement/{sys_id}', description: 'Mark change as implementing', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Record sys_id' }] },
+      { method: 'GET', path: '/api/now/change/schedule', description: 'Get upcoming change schedule', exampleResponse: { result: [{ number: 'CHG0001', planned_start: '2026-04-01', state: 'Scheduled' }] } },
+      // CMDB
+      { method: 'GET', path: '/api/now/table/cmdb_ci_server', description: 'List CMDB servers', exampleResponse: { result: [{ sys_id: 'ghi789', name: 'DC01', ip_address: '10.0.1.10' }] } },
+      { method: 'GET', path: '/api/now/cmdb/ci/{sys_id}/relations', description: 'Get CI relationships', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'CI sys_id' }], exampleResponse: { result: { inbound: [], outbound: [{ type: 'Depends on', target: { name: 'DC01' } }] } } },
+      { method: 'POST', path: '/api/now/cmdb/ci/{sys_id}/relations', description: 'Create CI relationship', parameters: [{ name: 'sys_id', type: 'string', required: true, description: 'Source CI sys_id' }, { name: 'target_sys_id', type: 'string', required: true, description: 'Target CI sys_id' }, { name: 'type', type: 'string', required: true, description: 'Relationship type' }], exampleRequest: { target_sys_id: 'abc123', type: 'Depends on::Used by' } },
+      { method: 'GET', path: '/api/now/cmdb/topology', description: 'Get CMDB topology map', exampleResponse: { result: { nodes: [], edges: [] } } },
+      // Service Catalog
+      { method: 'GET', path: '/api/now/catalog/items', description: 'List service catalog items', exampleResponse: { result: [{ sys_id: 'cat001', name: 'Privileged Access Request' }] } },
+      { method: 'POST', path: '/api/now/catalog/items/{item_id}/order', description: 'Order catalog item', parameters: [{ name: 'item_id', type: 'string', required: true, description: 'Catalog item sys_id' }, { name: 'variables', type: 'object', required: false, description: 'Request variables' }], exampleRequest: { requested_for: 'j.doe', variables: { server: 'DB-PROD', access_level: 'admin', justification: 'Database migration' } } },
+      // Users & Groups
+      { method: 'GET', path: '/api/now/table/sys_user', description: 'List ServiceNow users', exampleResponse: { result: [{ sys_id: 'usr001', user_name: 'admin', name: 'Administrator' }] } },
+      { method: 'GET', path: '/api/now/table/sys_user_group', description: 'List user groups', exampleResponse: { result: [{ sys_id: 'grp001', name: 'IT Operations' }] } },
+      // Events/Webhooks
+      { method: 'POST', path: '/api/now/events/register', description: 'Register webhook for record changes', parameters: [{ name: 'table', type: 'string', required: true, description: 'Table to watch' }, { name: 'url', type: 'string', required: true, description: 'Callback URL' }, { name: 'events', type: 'string', required: false, description: 'insert,update,delete' }], exampleRequest: { table: 'incident', url: 'http://fudo-mock:8443/api/v2/events/webhook', events: 'insert,update' } },
+      { method: 'GET', path: '/api/now/events/list', description: 'List registered webhooks', exampleResponse: { result: [] } },
+    ],
+  },
 ];

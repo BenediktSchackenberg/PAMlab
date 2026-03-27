@@ -73,6 +73,7 @@ export interface AppSettings {
   fudoUrl: string;
   matrixUrl: string;
   adUrl: string;
+  snowUrl: string;
   fudoUser: string;
   fudoPass: string;
   theme: 'dark' | 'light';

@@ -21,6 +21,7 @@ export default function Settings() {
     { key: 'fudoUrl', label: 'Fudo PAM URL' },
     { key: 'matrixUrl', label: 'Matrix42 ESM URL' },
     { key: 'adUrl', label: 'Active Directory URL' },
+    { key: 'snowUrl', label: 'ServiceNow ITSM URL' },
     { key: 'fudoUser', label: 'API Username' },
     { key: 'fudoPass', label: 'API Password', type: 'password' },
   ];

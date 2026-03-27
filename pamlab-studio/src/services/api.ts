@@ -4,6 +4,7 @@ const defaultSettings: AppSettings = {
   fudoUrl: 'http://localhost:8443',
   matrixUrl: 'http://localhost:8444',
   adUrl: 'http://localhost:8445',
+  snowUrl: 'http://localhost:8447',
   fudoUser: 'admin',
   fudoPass: 'admin',
   theme: 'dark',

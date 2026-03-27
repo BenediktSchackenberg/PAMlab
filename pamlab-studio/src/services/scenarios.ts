@@ -201,34 +201,205 @@ Invoke-RestMethod -Uri "$fudoBase/api/v2/servers/1/credentials" -Method PUT -Bod
 `,
   },
   {
+    id: 'snow-incident-auto',
+    name: 'SNOW Incident from PAM Anomaly',
+    description: 'Detect a Fudo PAM anomaly and automatically create a ServiceNow incident, then update CMDB.',
+    systems: ['Fudo PAM', 'ServiceNow ITSM'],
+    steps: [
+      'Check Fudo PAM for anomalies',
+      'Create SNOW incident from anomaly',
+      'Link incident to CMDB CI',
+      'Assign to IT Operations',
+    ],
+    template: `# ServiceNow Incident from PAM Anomaly
+$fudoBase = "http://localhost:8443"
+$snowBase = "http://localhost:8447"
+
+# Auth headers
+$fudoAuth = @{ Authorization = "Bearer pamlab-dev-token" }
+$snowAuth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 1: Check Fudo PAM events for anomalies
+$events = Invoke-RestMethod -Uri "$fudoBase/api/v2/events" -Headers $fudoAuth -Method GET
+Write-Host "Found $($events.Count) events"
+
+# Step 2: Create ServiceNow Incident
+$incident = @{
+    short_description = "PAM Anomaly: Unusual session pattern detected"
+    description = "Fudo PAM detected unusual session activity from svc-integration account. Multiple failed authentication attempts followed by successful login from new IP."
+    impact = 1
+    urgency = 1
+    category = "Security"
+    subcategory = "Intrusion Detection"
+    assigned_to = "b.wilson"
+    caller_id = "svc-fudo-sync"
+}
+$result = Invoke-RestMethod -Uri "$snowBase/api/now/table/incident" -Headers $snowAuth -Method POST -Body ($incident | ConvertTo-Json) -ContentType "application/json"
+Write-Host "Created incident: $($result.result.number)"
+
+# Step 3: Query CMDB for affected server
+$cmdb = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server?sysparm_query=name=FUDO-PAM" -Headers $snowAuth -Method GET
+Write-Host "CMDB CI: $($cmdb.result[0].name) ($($cmdb.result[0].ip_address))"
+
+# Step 4: Get incident stats
+$stats = Invoke-RestMethod -Uri "$snowBase/api/now/incident/stats" -Headers $snowAuth -Method GET
+Write-Host "Total open incidents: $($stats.result.total)"
+`,
+  },
+  {
+    id: 'snow-change-rotation',
+    name: 'SNOW Change for Password Rotation',
+    description: 'Create a ServiceNow change request for service account password rotation, get CAB approval, then execute.',
+    systems: ['ServiceNow ITSM', 'Active Directory', 'Fudo PAM'],
+    steps: [
+      'Create SNOW change request',
+      'Submit for CAB approval',
+      'After approval: rotate AD password',
+      'Update Fudo PAM credentials',
+      'Close change request',
+    ],
+    template: `# ServiceNow Change Request for Password Rotation
+$snowBase = "http://localhost:8447"
+$adBase = "http://localhost:8445"
+$fudoBase = "http://localhost:8443"
+
+$snowAuth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 1: Create Change Request
+$change = @{
+    short_description = "Scheduled password rotation for service accounts"
+    description = "Quarterly rotation of svc-integration and svc-fudo-sync passwords across AD and Fudo PAM"
+    type = "Standard"
+    risk = "Low"
+    assignment_group = "IT Operations"
+    requested_by = "admin"
+}
+$result = Invoke-RestMethod -Uri "$snowBase/api/now/table/change_request" -Headers $snowAuth -Method POST -Body ($change | ConvertTo-Json) -ContentType "application/json"
+$chgSysId = $result.result.sys_id
+Write-Host "Created change: $($result.result.number)"
+
+# Step 2: CAB Approval
+$approval = Invoke-RestMethod -Uri "$snowBase/api/now/change/approve/$chgSysId" -Headers $snowAuth -Method POST -Body '{"approval_notes":"Standard rotation - auto-approved"}' -ContentType "application/json"
+Write-Host "Change approved"
+
+# Step 3: Start Implementation
+Invoke-RestMethod -Uri "$snowBase/api/now/change/implement/$chgSysId" -Headers $snowAuth -Method POST -ContentType "application/json"
+
+# Step 4: Rotate AD password
+$newPass = "RotatedPass_$(Get-Date -Format 'yyyyMMdd')!"
+Invoke-RestMethod -Uri "$adBase/api/ad/users/svc-integration/reset-password" -Method POST -Body (@{newPassword=$newPass} | ConvertTo-Json) -ContentType "application/json"
+Write-Host "AD password rotated"
+
+# Step 5: Update Fudo PAM
+Invoke-RestMethod -Uri "$fudoBase/api/v2/servers/1/credentials" -Method PUT -Body (@{password=$newPass} | ConvertTo-Json) -ContentType "application/json"
+Write-Host "Fudo credentials updated"
+
+# Step 6: Check change schedule
+$schedule = Invoke-RestMethod -Uri "$snowBase/api/now/change/schedule" -Headers $snowAuth -Method GET
+Write-Host "Upcoming changes: $($schedule.result.Count)"
+`,
+  },
+  {
+    id: 'snow-cmdb-sync',
+    name: 'CMDB Sync & Discovery',
+    description: 'Synchronize PAMlab infrastructure into ServiceNow CMDB and verify relationships.',
+    systems: ['ServiceNow ITSM', 'Fudo PAM', 'Active Directory'],
+    steps: [
+      'Fetch servers from Fudo PAM',
+      'Fetch computers from AD',
+      'Query CMDB for existing CIs',
+      'Verify CMDB topology',
+      'Create catalog request for new server',
+    ],
+    template: `# CMDB Sync & Discovery
+$snowBase = "http://localhost:8447"
+$fudoBase = "http://localhost:8443"
+$adBase = "http://localhost:8445"
+
+$snowAuth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 1: Get Fudo PAM managed servers
+$pamServers = Invoke-RestMethod -Uri "$fudoBase/api/v2/servers" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
+Write-Host "PAM servers: $($pamServers.Count)"
+
+# Step 2: Get AD computer objects
+$adComputers = Invoke-RestMethod -Uri "$adBase/api/ad/computers" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
+Write-Host "AD computers: $($adComputers.Count)"
+
+# Step 3: Query CMDB servers
+$cmdbServers = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server?sysparm_fields=name,ip_address,os,operational_status" -Headers $snowAuth -Method GET
+Write-Host "CMDB CIs: $($cmdbServers.result.Count)"
+foreach ($ci in $cmdbServers.result) {
+    Write-Host "  $($ci.name) - $($ci.ip_address) [$($ci.os)]"
+}
+
+# Step 4: Get CMDB topology
+$topology = Invoke-RestMethod -Uri "$snowBase/api/now/cmdb/topology" -Headers $snowAuth -Method GET
+Write-Host "Topology: $($topology.result.nodes.Count) nodes, $($topology.result.edges.Count) edges"
+
+# Step 5: Order new server onboarding via catalog
+$order = @{
+    requested_for = "b.wilson"
+    variables = @{
+        server_name = "NEW-APP-01"
+        environment = "Production"
+        access_level = "admin"
+        justification = "New application deployment"
+    }
+}
+# Use first catalog item ID from the list
+$catalogItems = Invoke-RestMethod -Uri "$snowBase/api/now/catalog/items" -Headers $snowAuth -Method GET
+$itemId = $catalogItems.result[0].sys_id
+$orderResult = Invoke-RestMethod -Uri "$snowBase/api/now/catalog/items/$itemId/order" -Headers $snowAuth -Method POST -Body ($order | ConvertTo-Json -Depth 3) -ContentType "application/json"
+Write-Host "Catalog request created: $($orderResult.result.number)"
+`,
+  },
+  {
     id: 'audit-report',
     name: 'Audit Report',
-    description: 'Gather data from all systems for a compliance audit report.',
-    systems: ['Fudo PAM', 'Matrix42 ESM', 'Active Directory'],
+    description: 'Gather data from all systems (including ServiceNow) for a compliance audit report.',
+    systems: ['Fudo PAM', 'Matrix42 ESM', 'Active Directory', 'ServiceNow ITSM'],
     steps: [
       'Fetch all users from AD',
       'Fetch Fudo session logs',
       'Fetch ESM tickets',
+      'Fetch SNOW incidents & changes',
+      'Fetch CMDB inventory',
     ],
     template: `# Audit Report Scenario
 $fudoBase = "http://localhost:8443"
 $matrixBase = "http://localhost:8444"
 $adBase = "http://localhost:8445"
+$snowBase = "http://localhost:8447"
+
+$snowAuth = @{ Authorization = "Bearer pamlab-dev-token" }
 
 # Step 1: Get all AD users
-Invoke-RestMethod -Uri "$adBase/api/users" -Method GET
+Invoke-RestMethod -Uri "$adBase/api/ad/users" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
 
 # Step 2: Get Fudo session logs
-Invoke-RestMethod -Uri "$fudoBase/api/v2/sessions" -Method GET
+Invoke-RestMethod -Uri "$fudoBase/api/v2/sessions" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
 
 # Step 3: Get all ESM tickets
-Invoke-RestMethod -Uri "$matrixBase/api/tickets" -Method GET
+Invoke-RestMethod -Uri "$matrixBase/m42Services/api/tickets" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
 
 # Step 4: Get Fudo users
-Invoke-RestMethod -Uri "$fudoBase/api/v2/users" -Method GET
+Invoke-RestMethod -Uri "$fudoBase/api/v2/users" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
 
 # Step 5: Get AD groups
-Invoke-RestMethod -Uri "$adBase/api/groups" -Method GET
+Invoke-RestMethod -Uri "$adBase/api/ad/groups" -Headers @{Authorization="Bearer pamlab-dev-token"} -Method GET
+
+# Step 6: Get SNOW incidents (open)
+$incidents = Invoke-RestMethod -Uri "$snowBase/api/now/table/incident?sysparm_query=state!=7" -Headers $snowAuth -Method GET
+Write-Host "Open incidents: $($incidents.result.Count)"
+
+# Step 7: Get SNOW change requests
+$changes = Invoke-RestMethod -Uri "$snowBase/api/now/table/change_request" -Headers $snowAuth -Method GET
+Write-Host "Change requests: $($changes.result.Count)"
+
+# Step 8: Get CMDB server inventory
+$cmdb = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server" -Headers $snowAuth -Method GET
+Write-Host "CMDB servers: $($cmdb.result.Count)"
 `,
   },
 ];

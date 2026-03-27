@@ -48,6 +48,22 @@ services:
       timeout: 5s
       retries: 3
 
+  servicenow-mock:
+    build:
+      context: ./servicenow-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-servicenow
+    ports:
+      - "8447:8447"
+    environment:
+      - PORT=8447
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8447/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   pipeline-engine:
     build:
       context: ./pipeline-engine
@@ -60,12 +76,15 @@ services:
       - FUDO_URL=http://fudo-mock:8443
       - M42_URL=http://matrix42-mock:8444
       - AD_URL=http://ad-mock:8445
+      - SNOW_URL=http://servicenow-mock:8447
     depends_on:
       fudo-mock:
         condition: service_healthy
       matrix42-mock:
         condition: service_healthy
       ad-mock:
+        condition: service_healthy
+      servicenow-mock:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:

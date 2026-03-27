@@ -11,6 +11,7 @@ export default function ApiExplorer() {
     'Fudo PAM': settings.fudoUrl,
     'Matrix42 ESM': settings.matrixUrl,
     'Active Directory': settings.adUrl,
+    'ServiceNow ITSM': settings.snowUrl,
   };
 
   const tryIt = async (apiName: string, method: string, path: string) => {

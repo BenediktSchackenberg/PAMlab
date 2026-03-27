@@ -11,6 +11,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     { name: 'Fudo PAM', url: settings.fudoUrl },
     { name: 'Matrix42 ESM', url: settings.matrixUrl },
     { name: 'Active Directory', url: settings.adUrl },
+    { name: 'ServiceNow ITSM', url: settings.snowUrl },
   ];
 
   const pollHealth = useCallback(async () => {
@@ -41,7 +42,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-100 mb-6">Dashboard</h2>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         {statuses.map((s) => (
           <ApiStatusCard key={s.name} status={s} />
         ))}

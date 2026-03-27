@@ -30,6 +30,7 @@ PAMlab is a **complete developer sandbox** for building and testing enterprise a
 | 🔐 **Fudo PAM** | Privileged Access Management — session recording, password rotation, JIT access | `8443` |
 | 📋 **Matrix42 ESM** | Enterprise Service Management — asset management, ticketing, approval workflows | `8444` |
 | 🏢 **Active Directory** | Directory services — users, groups, OUs, computer objects | `8445` |
+| ❄️ **ServiceNow ITSM** | ITSM — incidents, changes, CMDB, service catalog | `8447` |
 | 🔗 **Pipeline Engine** | Modular action chain builder — orchestrates workflows across all systems | `8446` |
 | 🖥️ **PAMlab Studio** | Web-based IDE for building and testing integration scripts | `3000` |
 
