@@ -525,78 +525,244 @@ Write-Host "Reconciliation ticket created"
 `,
   },
   {
-    id: 'audit-report',
-    name: 'Audit Report',
-    description: 'Gather data from all systems (including ServiceNow and JSM) for a comprehensive compliance audit report.',
-    systems: ['Fudo PAM', 'Matrix42 ESM', 'Active Directory', 'ServiceNow ITSM', 'Jira Service Management'],
+    id: 'remedy-incident-from-pam',
+    name: 'Remedy Incident from PAM Alert',
+    description: 'Create a BMC Remedy incident from a Fudo PAM security anomaly, add work notes, and resolve.',
+    systems: ['Fudo PAM', 'BMC Remedy/Helix'],
     steps: [
-      'Fetch all users from AD',
-      'Fetch Fudo session logs',
-      'Fetch ESM tickets',
-      'Fetch SNOW incidents & changes',
-      'Fetch CMDB inventory',
-      'Fetch JSM issues & SLA status',
-      'Search JSM for security incidents',
+      'Check Fudo PAM for security events',
+      'Login to Remedy (AR-JWT)',
+      'Create Remedy incident',
+      'Add work note with investigation details',
+      'Assign to Security Team',
+      'Check SLA status',
     ],
-    template: `# Comprehensive Audit Report
+    template: `# Remedy Incident from PAM Alert
 $fudoBase = "http://localhost:8443"
-$matrixBase = "http://localhost:8444"
+$remedyBase = "http://localhost:8449"
+
+$auth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 1: Check Fudo PAM events
+$events = Invoke-RestMethod -Uri "$fudoBase/api/v2/events" -Headers $auth -Method GET
+Write-Host "Found $($events.Count) PAM events"
+
+# Step 2: Login to Remedy (AR-JWT)
+$token = Invoke-RestMethod -Uri "$remedyBase/api/jwt/login" -Method POST -Body (@{username="admin";password="admin"} | ConvertTo-Json) -ContentType "application/json"
+Write-Host "AR-JWT token obtained"
+# Can also use Bearer: $auth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 3: Create Remedy Incident
+$incident = @{
+    values = @{
+        Description = "PAM Alert: Unauthorized privileged session detected"
+        "Detailed Description" = "Fudo PAM detected svc-integration accessing DB-PROD at 03:14 UTC from unexpected IP 10.0.5.99. Session was not pre-approved."
+        "Impact" = "1-Extensive/Widespread"
+        "Urgency" = "1-Critical"
+        "Reported Source" = "Systems Management"
+        "Service Type" = "Infrastructure Event"
+        "Assigned Group" = "Security Team"
+        "Assignee" = "a.smith"
+    }
+}
+$result = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/HPD%3AHelp%20Desk" -Headers $auth -Method POST -Body ($incident | ConvertTo-Json -Depth 3) -ContentType "application/json"
+$incNum = $result.values."Incident Number"
+Write-Host "Created: $incNum"
+
+# Step 4: Add work note
+Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/incident/$incNum/worknotes" -Headers $auth -Method POST -Body (@{note="Reviewing PAM session recording. svc-integration account accessed DB-PROD via SSH. Checking if this was part of scheduled maintenance."} | ConvertTo-Json) -ContentType "application/json"
+Write-Host "Work note added"
+
+# Step 5: Check SLA status
+$sla = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/sla/status/$incNum" -Headers $auth -Method GET
+Write-Host "SLA breached: $($sla.response.breached)"
+Write-Host "Response time remaining: $([math]::Round($sla.response.remaining_ms / 60000))m"
+
+# Step 6: Get incident stats
+$stats = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/incident/stats" -Headers $auth -Method GET
+Write-Host "Total open: $($stats.open), Critical: $($stats.by_priority.Critical)"
+`,
+  },
+  {
+    id: 'remedy-change-workflow',
+    name: 'Remedy Change for PAM Upgrade',
+    description: 'Create and manage a BMC Remedy change request for Fudo PAM upgrade, including CAB approval and implementation.',
+    systems: ['BMC Remedy/Helix', 'Fudo PAM', 'Active Directory'],
+    steps: [
+      'Create change request',
+      'Get change schedule',
+      'Approve change (CAB)',
+      'Start implementation',
+      'Perform AD and Fudo changes',
+      'Complete change',
+    ],
+    template: `# Remedy Change Request for PAM Upgrade
+$remedyBase = "http://localhost:8449"
+$fudoBase = "http://localhost:8443"
 $adBase = "http://localhost:8445"
+
+$auth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# Step 1: Create Change Request
+$change = @{
+    values = @{
+        Description = "Upgrade Fudo PAM to v6.3 with security patches"
+        "Change Type" = "Normal"
+        "Risk Level" = "3"
+        "Status" = "Draft"
+        "Assigned Group" = "IT Operations"
+        "Assignee" = "j.doe"
+        "Priority" = "High"
+    }
+}
+$result = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/CHG%3AInfrastructure%20Change" -Headers $auth -Method POST -Body ($change | ConvertTo-Json -Depth 3) -ContentType "application/json"
+$chgId = $result.values."Infrastructure Change ID"
+Write-Host "Created: $chgId"
+
+# Step 2: View change schedule
+$schedule = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/change/schedule" -Headers $auth -Method GET
+Write-Host "Scheduled changes: $($schedule.result.Count)"
+
+# Step 3: CAB Approval
+Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/change/$chgId/approve" -Headers $auth -Method POST -Body (@{approval_notes="Reviewed by CAB. Low risk, standard procedure."} | ConvertTo-Json) -ContentType "application/json"
+Write-Host "Change approved"
+
+# Step 4: Start implementation
+Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/change/$chgId/implement" -Headers $auth -Method POST -ContentType "application/json"
+Write-Host "Implementation started"
+
+# Step 5: Verify AD service accounts
+$adUsers = Invoke-RestMethod -Uri "$adBase/api/ad/users/svc-fudo-sync" -Headers $auth -Method GET
+Write-Host "Fudo sync account: $($adUsers.sAMAccountName) - Enabled: $($adUsers.enabled)"
+
+# Step 6: Check Fudo PAM health
+$health = Invoke-RestMethod -Uri "$fudoBase/health" -Method GET
+Write-Host "Fudo PAM status: $($health.status)"
+
+# Step 7: Complete change
+Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/change/$chgId/complete" -Headers $auth -Method POST -ContentType "application/json"
+Write-Host "Change completed successfully"
+`,
+  },
+  {
+    id: 'remedy-cmdb-asset-sync',
+    name: 'Remedy CMDB Asset Audit',
+    description: 'Query BMC Remedy CMDB assets and compare with ServiceNow CMDB and JSM Assets for drift detection.',
+    systems: ['BMC Remedy/Helix', 'ServiceNow ITSM', 'Jira Service Management'],
+    steps: [
+      'Fetch Remedy CMDB assets',
+      'Fetch ServiceNow CMDB servers',
+      'Fetch JSM Assets',
+      'Get Remedy asset topology',
+      'Compare and report',
+    ],
+    template: `# Cross-ITSM CMDB Asset Audit
+$remedyBase = "http://localhost:8449"
 $snowBase = "http://localhost:8447"
 $jsmBase = "http://localhost:8448"
 
 $auth = @{ Authorization = "Bearer pamlab-dev-token" }
 
-# Step 1: Get all AD users
-Invoke-RestMethod -Uri "$adBase/api/ad/users" -Headers $auth -Method GET
-
-# Step 2: Get Fudo session logs
-Invoke-RestMethod -Uri "$fudoBase/api/v2/sessions" -Headers $auth -Method GET
-
-# Step 3: Get all ESM tickets
-Invoke-RestMethod -Uri "$matrixBase/m42Services/api/tickets" -Headers $auth -Method GET
-
-# Step 4: Get Fudo users
-Invoke-RestMethod -Uri "$fudoBase/api/v2/users" -Headers $auth -Method GET
-
-# Step 5: Get AD groups
-Invoke-RestMethod -Uri "$adBase/api/ad/groups" -Headers $auth -Method GET
-
-# Step 6: Get SNOW incidents (open)
-$incidents = Invoke-RestMethod -Uri "$snowBase/api/now/table/incident?sysparm_query=state!=7" -Headers $auth -Method GET
-Write-Host "Open SNOW incidents: $($incidents.result.Count)"
-
-# Step 7: Get SNOW change requests
-$changes = Invoke-RestMethod -Uri "$snowBase/api/now/table/change_request" -Headers $auth -Method GET
-Write-Host "SNOW change requests: $($changes.result.Count)"
-
-# Step 8: Get CMDB server inventory
-$cmdb = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server" -Headers $auth -Method GET
-Write-Host "CMDB servers: $($cmdb.result.Count)"
-
-# Step 9: Search all JSM incidents
-$jsmSearch = @{
-    jql = "project = ITSM AND issuetype = Incident ORDER BY priority ASC"
-    maxResults = 50
+# Step 1: Get Remedy CMDB assets
+$remedyAssets = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/AST%3AComputerSystem" -Headers $auth -Method GET
+Write-Host "Remedy assets: $($remedyAssets.entries.Count)"
+foreach ($a in $remedyAssets.entries) {
+    Write-Host "  $($a.values.Name) - $($a.values.'IP Address') [$($a.values.'Operating System')]"
 }
-$jsmIncidents = Invoke-RestMethod -Uri "$jsmBase/rest/api/2/search" -Headers $auth -Method POST -Body ($jsmSearch | ConvertTo-Json) -ContentType "application/json"
-Write-Host "JSM incidents: $($jsmIncidents.total)"
 
-# Step 10: Search JSM security issues
-$secSearch = @{
-    jql = "project = SEC ORDER BY created DESC"
-    maxResults = 50
+# Step 2: Get ServiceNow CMDB
+$snowCmdb = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server?sysparm_fields=name,ip_address,os" -Headers $auth -Method GET
+Write-Host "`nServiceNow CMDB: $($snowCmdb.result.Count)"
+foreach ($ci in $snowCmdb.result) {
+    Write-Host "  $($ci.name) - $($ci.ip_address) [$($ci.os)]"
 }
-$secIssues = Invoke-RestMethod -Uri "$jsmBase/rest/api/2/search" -Headers $auth -Method POST -Body ($secSearch | ConvertTo-Json) -ContentType "application/json"
-Write-Host "Security requests: $($secIssues.total)"
 
-# Step 11: Get JSM asset inventory
-$assets = Invoke-RestMethod -Uri "$jsmBase/rest/assets/1.0/objectschema/list" -Headers $auth -Method GET
-Write-Host "Asset schemas: $($assets.objectSchemas.Count)"
+# Step 3: Get JSM Assets
+$jsmAssets = Invoke-RestMethod -Uri "$jsmBase/rest/assets/1.0/object/aql?qlQuery=objectType%3DServer" -Headers $auth -Method GET
+Write-Host "`nJSM Assets: $($jsmAssets.objectEntries.Count)"
+foreach ($obj in $jsmAssets.objectEntries) {
+    Write-Host "  $($obj.label) - $($obj.objectType.name)"
+}
 
-Write-Host "`n=== AUDIT SUMMARY ==="
-Write-Host "Systems checked: Fudo PAM, Matrix42 ESM, AD, ServiceNow, JSM"
+# Step 4: Remedy asset topology
+$topology = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/asset/topology" -Headers $auth -Method GET
+Write-Host "`nRemedy topology: $($topology.nodes.Count) nodes, $($topology.edges.Count) edges"
+
+# Step 5: Summary
+Write-Host "`n=== CMDB AUDIT SUMMARY ==="
+Write-Host "Remedy:     $($remedyAssets.entries.Count) assets"
+Write-Host "ServiceNow: $($snowCmdb.result.Count) CIs"
+Write-Host "JSM:        $($jsmAssets.objectEntries.Count) objects"
+Write-Host "All three CMDBs should have matching server inventories."
+`,
+  },
+  {
+    id: 'audit-report',
+    name: 'Audit Report',
+    description: 'Gather data from ALL systems (Fudo, Matrix42, AD, ServiceNow, JSM, Remedy) for a comprehensive compliance audit.',
+    systems: ['Fudo PAM', 'Matrix42 ESM', 'Active Directory', 'ServiceNow ITSM', 'Jira Service Management', 'BMC Remedy/Helix'],
+    steps: [
+      'Fetch all users from AD',
+      'Fetch Fudo session logs',
+      'Fetch ESM tickets',
+      'Fetch SNOW incidents & changes',
+      'Fetch SNOW CMDB inventory',
+      'Fetch JSM issues & SLA',
+      'Fetch Remedy incidents & changes',
+      'Fetch Remedy CMDB assets',
+    ],
+    template: `# Full Enterprise Audit Report — All 6 Systems
+$fudoBase = "http://localhost:8443"
+$matrixBase = "http://localhost:8444"
+$adBase = "http://localhost:8445"
+$snowBase = "http://localhost:8447"
+$jsmBase = "http://localhost:8448"
+$remedyBase = "http://localhost:8449"
+
+$auth = @{ Authorization = "Bearer pamlab-dev-token" }
+
+# === AD ===
+$adUsers = Invoke-RestMethod -Uri "$adBase/api/ad/users" -Headers $auth -Method GET
+$adGroups = Invoke-RestMethod -Uri "$adBase/api/ad/groups" -Headers $auth -Method GET
+Write-Host "AD: $($adUsers.Count) users, $($adGroups.Count) groups"
+
+# === Fudo PAM ===
+$sessions = Invoke-RestMethod -Uri "$fudoBase/api/v2/sessions" -Headers $auth -Method GET
+$pamUsers = Invoke-RestMethod -Uri "$fudoBase/api/v2/users" -Headers $auth -Method GET
+Write-Host "Fudo: $($pamUsers.Count) users, $($sessions.Count) sessions"
+
+# === Matrix42 ===
+$tickets = Invoke-RestMethod -Uri "$matrixBase/m42Services/api/tickets" -Headers $auth -Method GET
+Write-Host "Matrix42: $($tickets.Count) tickets"
+
+# === ServiceNow ===
+$snowInc = Invoke-RestMethod -Uri "$snowBase/api/now/table/incident?sysparm_query=state!=7" -Headers $auth -Method GET
+$snowChg = Invoke-RestMethod -Uri "$snowBase/api/now/table/change_request" -Headers $auth -Method GET
+$snowCmdb = Invoke-RestMethod -Uri "$snowBase/api/now/table/cmdb_ci_server" -Headers $auth -Method GET
+Write-Host "ServiceNow: $($snowInc.result.Count) incidents, $($snowChg.result.Count) changes, $($snowCmdb.result.Count) CIs"
+
+# === JSM ===
+$jsmInc = Invoke-RestMethod -Uri "$jsmBase/rest/api/2/search" -Headers $auth -Method POST -Body (@{jql="project = ITSM AND issuetype = Incident";maxResults=50} | ConvertTo-Json) -ContentType "application/json"
+$jsmSec = Invoke-RestMethod -Uri "$jsmBase/rest/api/2/search" -Headers $auth -Method POST -Body (@{jql="project = SEC";maxResults=50} | ConvertTo-Json) -ContentType "application/json"
+$jsmAssets = Invoke-RestMethod -Uri "$jsmBase/rest/assets/1.0/objectschema/list" -Headers $auth -Method GET
+Write-Host "JSM: $($jsmInc.total) incidents, $($jsmSec.total) security requests, $($jsmAssets.objectSchemas.Count) schemas"
+
+# === BMC Remedy ===
+$remInc = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/HPD%3AHelp%20Desk" -Headers $auth -Method GET
+$remChg = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/CHG%3AInfrastructure%20Change" -Headers $auth -Method GET
+$remAssets = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/entry/AST%3AComputerSystem" -Headers $auth -Method GET
+$remStats = Invoke-RestMethod -Uri "$remedyBase/api/arsys/v1/incident/stats" -Headers $auth -Method GET
+Write-Host "Remedy: $($remInc.entries.Count) incidents, $($remChg.entries.Count) changes, $($remAssets.entries.Count) assets"
+
+# === SUMMARY ===
+Write-Host "`n========================================="
+Write-Host "    ENTERPRISE AUDIT REPORT SUMMARY"
+Write-Host "========================================="
+Write-Host "Systems audited: 6"
+Write-Host "  AD, Fudo PAM, Matrix42 ESM"
+Write-Host "  ServiceNow ITSM, JSM, BMC Remedy"
 Write-Host "Report generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+Write-Host "========================================="
 `,
   },
 ];

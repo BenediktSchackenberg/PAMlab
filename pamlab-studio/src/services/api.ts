@@ -6,6 +6,7 @@ const defaultSettings: AppSettings = {
   adUrl: 'http://localhost:8445',
   snowUrl: 'http://localhost:8447',
   jsmUrl: 'http://localhost:8448',
+  remedyUrl: 'http://localhost:8449',
   fudoUser: 'admin',
   fudoPass: 'admin',
   theme: 'dark',

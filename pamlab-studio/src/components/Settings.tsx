@@ -23,6 +23,7 @@ export default function Settings() {
     { key: 'adUrl', label: 'Active Directory URL' },
     { key: 'snowUrl', label: 'ServiceNow ITSM URL' },
     { key: 'jsmUrl', label: 'Jira Service Mgmt URL' },
+    { key: 'remedyUrl', label: 'BMC Remedy / Helix URL' },
     { key: 'fudoUser', label: 'API Username' },
     { key: 'fudoPass', label: 'API Password', type: 'password' },
   ];

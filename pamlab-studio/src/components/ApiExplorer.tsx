@@ -13,6 +13,7 @@ export default function ApiExplorer() {
     'Active Directory': settings.adUrl,
     'ServiceNow ITSM': settings.snowUrl,
     'Jira Service Management': settings.jsmUrl,
+    'BMC Remedy / Helix': settings.remedyUrl,
   };
 
   const tryIt = async (apiName: string, method: string, path: string) => {

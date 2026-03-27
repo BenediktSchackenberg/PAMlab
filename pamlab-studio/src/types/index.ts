@@ -75,6 +75,7 @@ export interface AppSettings {
   adUrl: string;
   snowUrl: string;
   jsmUrl: string;
+  remedyUrl: string;
   fudoUser: string;
   fudoPass: string;
   theme: 'dark' | 'light';

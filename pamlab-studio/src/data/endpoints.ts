@@ -130,4 +130,50 @@ export const apiEndpoints: ApiEndpointGroup[] = [
       { method: 'DELETE', path: '/rest/api/2/webhook/{webhookId}', description: 'Delete webhook', parameters: [{ name: 'webhookId', type: 'string', required: true, description: 'Webhook ID' }] },
     ],
   },
+  {
+    api: 'BMC Remedy / Helix',
+    baseUrl: 'http://localhost:8449',
+    endpoints: [
+      { method: 'GET', path: '/health', description: 'Health check', exampleResponse: { status: 'healthy', service: 'remedy-mock-api' } },
+      // Authentication (AR-JWT)
+      { method: 'POST', path: '/api/jwt/login', description: 'Login — returns AR-JWT token (plain text)', parameters: [{ name: 'username', type: 'string', required: true, description: 'Username' }, { name: 'password', type: 'string', required: true, description: 'Password' }], exampleRequest: { username: 'admin', password: 'admin' }, exampleResponse: 'AR-JWT eyJhbGciOiJIUzI1NiIs...' },
+      { method: 'DELETE', path: '/api/jwt/logout', description: 'Logout — invalidate AR-JWT token' },
+      // Generic Entry API (forms)
+      { method: 'GET', path: '/api/arsys/v1/entry/{formName}', description: 'List entries for any form (supports q=, fields=, offset, limit, sort)', parameters: [{ name: 'formName', type: 'string', required: true, description: 'Form name (e.g. HPD:Help Desk, CHG:Infrastructure Change)' }, { name: 'q', type: 'string', required: false, description: 'Qualification string (e.g. \'Status\'="New")' }, { name: 'fields', type: 'string', required: false, description: 'Comma-separated field list' }, { name: 'limit', type: 'number', required: false, description: 'Max results' }, { name: 'offset', type: 'number', required: false, description: 'Start offset' }], exampleResponse: { entries: [{ values: { 'Request ID': 'INC000000001' }, _links: { self: [{ href: '...' }] } }] } },
+      { method: 'GET', path: '/api/arsys/v1/entry/{formName}/{entryId}', description: 'Get single entry by ID', parameters: [{ name: 'formName', type: 'string', required: true, description: 'Form name' }, { name: 'entryId', type: 'string', required: true, description: 'Entry/Request ID' }] },
+      { method: 'POST', path: '/api/arsys/v1/entry/{formName}', description: 'Create entry (returns Location header)', parameters: [{ name: 'formName', type: 'string', required: true, description: 'Form name' }], exampleRequest: { values: { Description: 'New incident from PAM', Impact: '1-Extensive/Widespread', Urgency: '1-Critical' } } },
+      { method: 'PUT', path: '/api/arsys/v1/entry/{formName}/{entryId}', description: 'Update entry', parameters: [{ name: 'formName', type: 'string', required: true, description: 'Form name' }, { name: 'entryId', type: 'string', required: true, description: 'Entry ID' }] },
+      { method: 'DELETE', path: '/api/arsys/v1/entry/{formName}/{entryId}', description: 'Delete entry', parameters: [{ name: 'formName', type: 'string', required: true, description: 'Form name' }, { name: 'entryId', type: 'string', required: true, description: 'Entry ID' }] },
+      // Incident (HPD:Help Desk) convenience
+      { method: 'GET', path: '/api/arsys/v1/incident/stats', description: 'Incident statistics (total, open, by priority, by group)', exampleResponse: { total: 8, open: 6, by_priority: { Critical: 4, High: 2 } } },
+      { method: 'POST', path: '/api/arsys/v1/incident/{id}/assign', description: 'Assign incident to group/person', parameters: [{ name: 'id', type: 'string', required: true, description: 'Incident Number' }, { name: 'assigned_group', type: 'string', required: false, description: 'Support group' }, { name: 'assignee', type: 'string', required: false, description: 'Person login' }], exampleRequest: { assigned_group: 'IT Operations', assignee: 'j.doe' } },
+      { method: 'POST', path: '/api/arsys/v1/incident/{id}/resolve', description: 'Resolve incident with resolution', parameters: [{ name: 'id', type: 'string', required: true, description: 'Incident Number' }, { name: 'resolution', type: 'string', required: true, description: 'Resolution text' }], exampleRequest: { resolution: 'Restarted database service, connections restored.' } },
+      { method: 'POST', path: '/api/arsys/v1/incident/{id}/reopen', description: 'Reopen a resolved/closed incident', parameters: [{ name: 'id', type: 'string', required: true, description: 'Incident Number' }] },
+      { method: 'POST', path: '/api/arsys/v1/incident/{id}/worknotes', description: 'Add work note to incident', parameters: [{ name: 'id', type: 'string', required: true, description: 'Incident Number' }, { name: 'note', type: 'string', required: true, description: 'Work note text' }], exampleRequest: { note: 'Investigating root cause — checking PAM session logs' } },
+      // Change Management (CHG:Infrastructure Change) convenience
+      { method: 'GET', path: '/api/arsys/v1/change/schedule', description: 'Change calendar — list scheduled changes', exampleResponse: { result: [{ 'Infrastructure Change ID': 'CRQ000000001', 'Description': 'Upgrade Fudo PAM to v6.2' }] } },
+      { method: 'POST', path: '/api/arsys/v1/change/{id}/approve', description: 'Approve change request (CAB)', parameters: [{ name: 'id', type: 'string', required: true, description: 'Change ID' }, { name: 'approval_notes', type: 'string', required: false, description: 'Approval notes' }], exampleRequest: { approval_notes: 'Risk assessment reviewed, approved by CAB' } },
+      { method: 'POST', path: '/api/arsys/v1/change/{id}/reject', description: 'Reject change request', parameters: [{ name: 'id', type: 'string', required: true, description: 'Change ID' }, { name: 'rejection_reason', type: 'string', required: true, description: 'Reason' }] },
+      { method: 'POST', path: '/api/arsys/v1/change/{id}/implement', description: 'Start change implementation', parameters: [{ name: 'id', type: 'string', required: true, description: 'Change ID' }] },
+      { method: 'POST', path: '/api/arsys/v1/change/{id}/complete', description: 'Complete change', parameters: [{ name: 'id', type: 'string', required: true, description: 'Change ID' }] },
+      { method: 'GET', path: '/api/arsys/v1/change/{id}/tasks', description: 'List change tasks', parameters: [{ name: 'id', type: 'string', required: true, description: 'Change ID' }] },
+      // Asset (AST:ComputerSystem) convenience
+      { method: 'GET', path: '/api/arsys/v1/asset/topology', description: 'Asset relationship topology (nodes + edges)', exampleResponse: { nodes: [], edges: [] } },
+      { method: 'GET', path: '/api/arsys/v1/asset/{id}/relationships', description: 'Get CI relationships', parameters: [{ name: 'id', type: 'string', required: true, description: 'Asset instance ID' }] },
+      { method: 'POST', path: '/api/arsys/v1/asset/{id}/relationships', description: 'Create CI relationship', parameters: [{ name: 'id', type: 'string', required: true, description: 'Asset instance ID' }, { name: 'target_id', type: 'string', required: true, description: 'Target asset ID' }, { name: 'type', type: 'string', required: true, description: 'Relationship type (e.g. Runs On, Depends On)' }] },
+      // People (CTM:People) convenience
+      { method: 'GET', path: '/api/arsys/v1/people/groups', description: 'List support groups', exampleResponse: { entries: [{ values: { 'Group Name': 'IT Operations', 'Group Lead': 'j.doe' } }] } },
+      { method: 'GET', path: '/api/arsys/v1/people/groups/{groupId}/members', description: 'List support group members', parameters: [{ name: 'groupId', type: 'string', required: true, description: 'Group ID' }] },
+      // Work Orders (WOI:WorkOrder) convenience
+      { method: 'POST', path: '/api/arsys/v1/workorder/{id}/assign', description: 'Assign work order', parameters: [{ name: 'id', type: 'string', required: true, description: 'Work Order ID' }, { name: 'assignee', type: 'string', required: true, description: 'Assignee login' }] },
+      { method: 'POST', path: '/api/arsys/v1/workorder/{id}/complete', description: 'Complete work order', parameters: [{ name: 'id', type: 'string', required: true, description: 'Work Order ID' }] },
+      // SLA Management
+      { method: 'GET', path: '/api/arsys/v1/sla/definitions', description: 'List SLA definitions (P1-P4 response/resolution targets)', exampleResponse: { entries: [{ values: { Name: 'P1 - Critical', 'Response Target': '15 minutes', 'Resolution Target': '4 hours' } }] } },
+      { method: 'GET', path: '/api/arsys/v1/sla/status/{incidentId}', description: 'Get SLA status for incident (time remaining, breach)', parameters: [{ name: 'incidentId', type: 'string', required: true, description: 'Incident Number' }], exampleResponse: { response: { target_ms: 900000, elapsed_ms: 300000, remaining_ms: 600000, breached: false }, resolution: { target_ms: 14400000, breached: false } } },
+      // Webhooks
+      { method: 'POST', path: '/api/arsys/v1/webhook', description: 'Register webhook', parameters: [{ name: 'url', type: 'string', required: true, description: 'Callback URL' }, { name: 'events', type: 'string[]', required: true, description: 'Events (incident.created, change.approved, etc.)' }], exampleRequest: { url: 'http://fudo-mock:8443/api/v2/events/webhook', events: ['incident.created', 'incident.resolved'] } },
+      { method: 'GET', path: '/api/arsys/v1/webhook', description: 'List registered webhooks' },
+      { method: 'DELETE', path: '/api/arsys/v1/webhook/{id}', description: 'Delete webhook', parameters: [{ name: 'id', type: 'string', required: true, description: 'Webhook ID' }] },
+    ],
+  },
 ];
