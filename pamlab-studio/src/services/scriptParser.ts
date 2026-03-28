@@ -3,20 +3,40 @@ import { getSettings } from './api';
 
 /**
  * Simplified PowerShell Invoke-RestMethod parser.
- * Handles multi-line @{ } hashtables and variable substitution.
+ * Handles multi-line @{ } hashtables, variable substitution, and string interpolation.
  */
 export function parseScript(script: string): ApiCall[] {
   const settings = getSettings();
   const calls: ApiCall[] = [];
   const lines = script.split('\n');
 
+  // Variable substitution map for base URLs
+  const baseVars: Record<string, string> = {
+    matrixBase: settings.matrixUrl,
+    fudoBase: settings.fudoUrl,
+    adBase: settings.adUrl,
+    snowBase: settings.snowUrl,
+    jsmBase: settings.jsmUrl,
+    remedyBase: settings.remedyUrl,
+  };
+
+  // Substitute $varName in a string
+  function subst(s: string): string {
+    return s.replace(/\$(\w+)/g, (_, name) => baseVars[name] || `\$${name}`);
+  }
+
   // Collect variable assignments (multi-line hashtable support)
   const vars: Record<string, Record<string, string>> = {};
+  // Also track simple string assignments
+  const stringVars: Record<string, string> = {};
   let currentVar: string | null = null;
   let currentBlock: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    // Skip comments and blank lines
+    if (!trimmed || trimmed.startsWith('#')) continue;
 
     // Start of multi-line hashtable: $var = @{
     const startMatch = trimmed.match(/^\$(\w+)\s*=\s*@\{\s*$/);
@@ -29,7 +49,6 @@ export function parseScript(script: string): ApiCall[] {
     // Inside a hashtable block
     if (currentVar !== null) {
       if (trimmed === '}') {
-        // End of hashtable — parse the collected lines
         vars[currentVar] = parseHashtable(currentBlock);
         currentVar = null;
         currentBlock = [];
@@ -46,6 +65,22 @@ export function parseScript(script: string): ApiCall[] {
       continue;
     }
 
+    // Simple string variable: $var = "value" or $var = 'value'
+    const strMatch = trimmed.match(/^\$(\w+)\s*=\s*["']([^"']*)["']\s*$/);
+    if (strMatch) {
+      stringVars[strMatch[1]] = strMatch[2];
+      baseVars[strMatch[1]] = strMatch[2]; // also add to base vars for substitution
+      continue;
+    }
+
+    // Array assignment: $var = @("val1") — store as array-like hashtable
+    const arrMatch = trimmed.match(/^\$(\w+)\s*=\s*@\((.+)\)\s*$/);
+    if (arrMatch) {
+      const items = arrMatch[2].match(/["']([^"']+)["']/g)?.map(s => s.replace(/["']/g, '')) || [];
+      vars[arrMatch[1]] = { members: JSON.stringify(items) };
+      continue;
+    }
+
     // Look for Invoke-RestMethod
     if (!trimmed.includes('Invoke-RestMethod')) continue;
 
@@ -53,30 +88,28 @@ export function parseScript(script: string): ApiCall[] {
     let url = '';
     let body: unknown = undefined;
 
+    // Join continuation lines (`) — not needed for single-line but good practice
+    let fullLine = trimmed;
+
     // Extract -Method
-    const methodMatch = trimmed.match(/-Method\s+(\w+)/i);
+    const methodMatch = fullLine.match(/-Method\s+(\w+)/i);
     if (methodMatch) method = methodMatch[1].toUpperCase();
 
-    // Extract -Uri
-    const uriMatch = trimmed.match(/-Uri\s+["']([^"']+)["']/i) || trimmed.match(/-Uri\s+(\S+)/i);
+    // Extract -Uri — handle both quoted and unquoted, with variable substitution
+    const uriMatch = fullLine.match(/-Uri\s+"([^"]+)"/i) ||
+                     fullLine.match(/-Uri\s+'([^']+)'/i) ||
+                     fullLine.match(/-Uri\s+(\S+?)(?:\s+-|$)/i);
     if (uriMatch) {
-      url = uriMatch[1]
-        .replace(/\$fudoBase/g, settings.fudoUrl)
-        .replace(/\$matrixBase/g, settings.matrixUrl)
-        .replace(/\$adBase/g, settings.adUrl)
-        .replace(/\$snowBase/g, settings.snowUrl)
-        .replace(/\$jsmBase/g, settings.jsmUrl)
-        .replace(/\$remedyBase/g, settings.remedyUrl)
-        .replace(/\$\w+Base/g, settings.fudoUrl);
+      url = subst(uriMatch[1]);
     }
 
-    // Extract -Body with variable reference: ($var | ConvertTo-Json)
-    const bodyMatch = trimmed.match(/-Body\s+\(?\$(\w+)/i);
+    // Extract -Body with variable reference: ($var | ConvertTo-Json) or just $var
+    const bodyMatch = fullLine.match(/-Body\s+\(?\$(\w+)/i);
     if (bodyMatch && vars[bodyMatch[1]]) {
       body = vars[bodyMatch[1]];
     }
     // Inline JSON body: -Body '{"key":"val"}'
-    const inlineBody = trimmed.match(/-Body\s+'(\{[^']+\})'/i);
+    const inlineBody = fullLine.match(/-Body\s+'(\{[^']+\})'/i);
     if (inlineBody) {
       try { body = JSON.parse(inlineBody[1]); } catch { /* skip */ }
     }
@@ -91,7 +124,7 @@ export function parseScript(script: string): ApiCall[] {
 
 /**
  * Parse PowerShell hashtable lines into a JS object.
- * Handles: key = "value" and key = value
+ * Handles: key = "value", key = 'value', key = value, key = @("item")
  */
 function parseHashtable(lines: string[]): Record<string, string> {
   const result: Record<string, string> = {};
@@ -101,6 +134,12 @@ function parseHashtable(lines: string[]): Record<string, string> {
     const m = line.match(/^(\w+)\s*=\s*["']?([^"'\n;]*)["']?\s*;?\s*$/);
     if (m) {
       result[m[1]] = m[2].trim();
+    }
+    // Match: key = @("item1", "item2")
+    const arrM = line.match(/^(\w+)\s*=\s*@\((.+)\)\s*;?\s*$/);
+    if (arrM) {
+      const items = arrM[2].match(/["']([^"']+)["']/g)?.map(s => s.replace(/["']/g, '')) || [];
+      result[arrM[1]] = JSON.stringify(items);
     }
   }
   return result;
