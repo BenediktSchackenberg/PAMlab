@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920,height=1080,initial-scale=1">
+<title>PAMlab Studio v2 — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--fg:#e2e8f0;--dim:#64748b;--blue:#3b82f6;--purple:#a855f7;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--cyan:#06b6d4;--pink:#ec4899;--card:rgba(255,255,255,.06);--radius:12px}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--fg);overflow:hidden}
+.progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .4s;z-index:99}
+.deck{position:relative;width:100%;height:100%}
+.slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 80px;opacity:0;transform:translateX(60px);transition:opacity .5s,transform .5s;pointer-events:none}
+.slide.active{opacity:1;transform:translateX(0);pointer-events:auto}
+.slide.prev{opacity:0;transform:translateX(-60px)}
+h1{font-size:3.2rem;font-weight:900;margin-bottom:.4em;text-align:center}
+h2{font-size:2.4rem;font-weight:800;margin-bottom:.6em;text-align:center}
+.grad{background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{font-size:1.3rem;color:var(--dim);text-align:center;max-width:700px}
+.hint{margin-top:2rem;color:var(--dim);font-size:.95rem;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+/* floating icons */
+.icons{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.icons span{position:absolute;font-size:2.4rem;animation:floatIcon 8s ease-in-out infinite}
+@keyframes floatIcon{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-30px) rotate(10deg)}}
+.icons span:nth-child(1){top:15%;left:10%;animation-delay:0s}
+.icons span:nth-child(2){top:20%;right:12%;animation-delay:1.2s}
+.icons span:nth-child(3){bottom:25%;left:15%;animation-delay:2.4s}
+.icons span:nth-child(4){top:30%;left:50%;animation-delay:3.6s}
+.icons span:nth-child(5){bottom:20%;right:18%;animation-delay:4.8s}
+.icons span:nth-child(6){top:60%;left:8%;animation-delay:.8s}
+/* cards grid */
+.cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:1.2rem}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);padding:20px 24px;min-width:180px;backdrop-filter:blur(4px)}
+.card h3{font-size:1rem;margin-bottom:.3em}
+.card p,.card small{color:var(--dim);font-size:.85rem}
+/* steps journey */
+.journey{display:flex;flex-direction:column;gap:18px;margin-top:1rem;width:100%;max-width:750px}
+.step{display:flex;align-items:center;gap:16px;background:var(--card);padding:16px 24px;border-radius:var(--radius);font-size:1.05rem}
+.step .result{margin-left:auto;font-weight:700}
+.step .result.warn{color:var(--orange)}.step .result.bad{color:var(--red)}
+/* arch diagram */
+.arch{display:flex;flex-direction:column;align-items:center;gap:20px;margin-top:1rem}
+.arch-hub{background:linear-gradient(135deg,var(--blue),var(--purple));padding:14px 32px;border-radius:var(--radius);font-weight:700;font-size:1.1rem}
+.arch-line{width:2px;height:24px;background:var(--dim)}
+.arch-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.sys-card{text-align:center;padding:14px 18px;border-radius:var(--radius);min-width:110px;font-weight:600;font-size:.9rem;border:1px solid rgba(255,255,255,.1)}
+.sys-card small{display:block;font-family:'JetBrains Mono',monospace;font-weight:400;margin-top:4px;color:var(--dim);font-size:.75rem}
+.term{background:#111;border:1px solid #333;border-radius:var(--radius);padding:16px 24px;font-family:'JetBrains Mono',monospace;font-size:.95rem;margin-top:1rem;color:var(--green);max-width:600px;width:100%}
+.term .prompt::before{content:'$ ';color:var(--dim)}
+/* template cards */
+.tpl{background:var(--card);border-radius:var(--radius);padding:18px 22px;width:340px;border-left:4px solid var(--blue)}
+.tpl h3{font-size:1rem;margin-bottom:.2em}
+.tpl .badge{display:inline-block;background:var(--blue);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:99px;margin-right:6px;font-weight:700}
+.tpl .route{color:var(--dim);font-size:.8rem;margin-top:.3em}
+/* flow viz */
+.flow{display:flex;align-items:center;gap:0;margin-top:1.4rem;flex-wrap:wrap;justify-content:center}
+.flow-node{width:100px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;text-align:center;opacity:.3;transition:opacity .4s,box-shadow .4s;border:2px solid transparent}
+.flow-node.lit{opacity:1;box-shadow:0 0 20px rgba(59,130,246,.4)}
+.flow-node.done{border-color:var(--green);box-shadow:0 0 20px rgba(34,197,94,.3)}
+.flow-arrow{width:30px;text-align:center;color:var(--dim);font-size:1.2rem}
+.timer{font-family:'JetBrains Mono',monospace;font-size:1.4rem;margin-top:1.2rem;color:var(--green)}
+/* code editor */
+.editor{display:flex;gap:2px;width:100%;max-width:960px;margin-top:1rem;border-radius:var(--radius);overflow:hidden}
+.editor-pane{flex:1;background:#111;padding:18px;font-family:'JetBrains Mono',monospace;font-size:.72rem;line-height:1.6;overflow:hidden}
+.editor-pane h4{font-family:'Inter',sans-serif;font-size:.85rem;margin-bottom:10px;color:var(--dim)}
+.kw{color:var(--blue)}.str{color:var(--green)}.cm{color:var(--dim)}.fn{color:var(--orange)}.var{color:var(--cyan)}
+.check{color:var(--green)}
+/* split compare */
+.compare{display:flex;gap:4px;width:100%;max-width:960px;margin-top:1rem}
+.compare>div{flex:1;background:#111;padding:16px;border-radius:var(--radius);font-family:'JetBrains Mono',monospace;font-size:.72rem;line-height:1.6}
+.compare .hl{background:rgba(234,179,8,.15);display:inline}
+.auth-list{display:flex;gap:12px;margin-top:1rem;flex-wrap:wrap;justify-content:center}
+.auth-list span{background:var(--card);padding:8px 16px;border-radius:99px;font-size:.85rem;border:1px solid rgba(255,255,255,.1)}
+/* chain viz */
+.chain{display:flex;align-items:center;gap:0;margin-top:1.4rem;flex-wrap:wrap;justify-content:center}
+.chain-node{background:var(--card);padding:12px 20px;border-radius:var(--radius);font-size:.85rem;font-weight:600;border:1px solid rgba(255,255,255,.1)}
+.chain-arr{padding:0 8px;color:var(--dim);font-size:1.2rem}
+.api-box{background:#111;border:1px solid var(--blue);border-radius:var(--radius);padding:14px 24px;margin-top:1.2rem;font-family:'JetBrains Mono',monospace;font-size:.85rem}
+/* stats */
+.stats{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-top:1.2rem}
+.stat{text-align:center;min-width:150px}
+.stat .num{font-size:2.8rem;font-weight:900;line-height:1}
+.stat .label{color:var(--dim);font-size:.85rem;margin-top:.3em}
+.footer{color:var(--dim);font-size:.95rem;margin-top:1.8rem;text-align:center}
+/* CTA */
+.btn{display:inline-block;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;padding:12px 32px;border-radius:99px;text-decoration:none;font-weight:700;margin-top:1rem;font-size:1rem;transition:transform .2s}
+.btn:hover{transform:scale(1.05)}
+/* nav */
+.nav{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;z-index:90;background:rgba(0,0,0,.6);padding:8px 16px;border-radius:99px;backdrop-filter:blur(8px)}
+.dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.2);cursor:pointer;transition:background .3s,transform .3s}
+.dot.active{background:var(--blue);transform:scale(1.3)}
+.nav button{background:none;border:none;color:var(--fg);font-size:1.1rem;cursor:pointer;padding:0 4px;opacity:.6}
+.nav button:hover{opacity:1}
+.counter{font-size:.75rem;color:var(--dim);font-family:'JetBrains Mono',monospace;min-width:50px;text-align:center}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<!-- S1: Title -->
+<div class="slide active">
+ <div class="icons"><span>🔐</span><span>🏢</span><span>🎫</span><span>📋</span><span>🔷</span><span>🛠️</span></div>
+ <h1 style="font-size:4.5rem"><span class="grad">PAMlab Studio</span></h1>
+ <p class="subtitle">Build, Test &amp; Ship PAM Workflows — Without Touching Production</p>
+ <p class="hint">Press → to start</p>
+</div>
+
+<!-- S2: Problem -->
+<div class="slide">
+ <h2>The Problem Everyone Knows</h2>
+ <div class="journey">
+  <div class="step">Step 1: Write provisioning script <span class="result" style="color:var(--green)">✅ Done</span></div>
+  <div class="step">Step 2: Ask for dev access to Fudo / AD / ServiceNow <span class="result warn">⏳ 3 weeks</span></div>
+  <div class="step">Step 3: Test against production <span class="result bad">💀 Good luck</span></div>
+  <div class="step">Step 4: Break something <span class="result bad">🔥 200 users locked out</span></div>
+ </div>
+</div>
+
+<!-- S3: Architecture -->
+<div class="slide">
+ <h2>7 Mock APIs. One Command. Zero Risk.</h2>
+ <div class="arch">
+  <div class="arch-hub">PAMlab Studio :3000</div>
+  <div class="arch-line"></div>
+  <div class="arch-row">
+   <div class="sys-card" style="background:rgba(59,130,246,.15);color:var(--blue)">🔐 Fudo<small>:8443 · 42 eps</small></div>
+   <div class="sys-card" style="background:rgba(168,85,247,.15);color:var(--purple)">🏢 Matrix42<small>:8444 · 38 eps</small></div>
+   <div class="sys-card" style="background:rgba(6,182,212,.15);color:var(--cyan)">👤 AD (LDAP)<small>:8445 · 28 eps</small></div>
+   <div class="sys-card" style="background:rgba(34,197,94,.15);color:var(--green)">❄️ ServiceNow<small>:8447 · 55 eps</small></div>
+   <div class="sys-card" style="background:rgba(245,158,11,.15);color:var(--orange)">🎫 Jira SM<small>:8448 · 40 eps</small></div>
+   <div class="sys-card" style="background:rgba(236,72,153,.15);color:var(--pink)">🛠️ Remedy<small>:8449 · 35 eps</small></div>
+   <div class="sys-card" style="background:rgba(100,116,139,.15);color:var(--dim)">🔷 Custom<small>:8450 · 42 eps</small></div>
+  </div>
+ </div>
+ <div class="term"><span class="prompt">docker-compose up -d</span><br><span style="color:var(--dim)">✓ All 7 services healthy in 4.2s</span></div>
+</div>
+
+<!-- S4: Templates -->
+<div class="slide">
+ <h2>5 Real-World Templates — Ready to Run</h2>
+ <div class="cards">
+  <div class="tpl" style="border-color:var(--green)"><h3>👤 Employee Onboarding</h3><span class="badge" style="background:var(--green)">8 steps</span><div class="route">Matrix42 → AD → Fudo</div></div>
+  <div class="tpl" style="border-color:var(--orange)"><h3>⏱️ Temporary Access</h3><span class="badge" style="background:var(--orange)">4 steps</span><div class="route">Matrix42 → AD → Fudo</div></div>
+  <div class="tpl" style="border-color:var(--red)"><h3>🚪 Offboarding</h3><span class="badge" style="background:var(--red)">5 steps</span><div class="route">AD → Fudo → ServiceNow</div></div>
+  <div class="tpl" style="border-color:var(--pink)"><h3>🚨 Emergency Revocation</h3><span class="badge" style="background:var(--pink)">5 steps</span><div class="route">Fudo → AD → ServiceNow</div></div>
+  <div class="tpl" style="border-color:var(--cyan)"><h3>📁 Project Access</h3><span class="badge" style="background:var(--cyan)">4 steps</span><div class="route">AD → Fudo → Jira</div></div>
+ </div>
+</div>
+
+<!-- S5: Flow Viz -->
+<div class="slide" id="slide-flow">
+ <h2>Watch Your Workflow Execute</h2>
+ <div class="flow" id="flow">
+  <div class="flow-node" style="background:rgba(168,85,247,.2);color:var(--purple)" data-i="0">Get<br>Ticket</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(168,85,247,.2);color:var(--purple)" data-i="1">Validate<br>Request</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(6,182,212,.2);color:var(--cyan)" data-i="2">Create<br>AD User</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(6,182,212,.2);color:var(--cyan)" data-i="3">Add to<br>Groups</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(59,130,246,.2);color:var(--blue)" data-i="4">Create<br>Fudo User</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(59,130,246,.2);color:var(--blue)" data-i="5">Assign<br>Policy</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(34,197,94,.2);color:var(--green)" data-i="6">Update<br>Ticket</div><div class="flow-arrow">→</div>
+  <div class="flow-node" style="background:rgba(34,197,94,.2);color:var(--green)" data-i="7">✅<br>Done</div>
+ </div>
+ <div class="timer" id="timer">Total: 0ms</div>
+</div>
+
+<!-- S6: Code Editor -->
+<div class="slide">
+ <h2>PowerShell IDE with Superpowers</h2>
+ <div class="editor">
+  <div class="editor-pane"><h4>📝 onboarding.ps1</h4><pre><span class="cm"># Create AD user from ticket data</span>
+<span class="var">$ticket</span> = <span class="fn">Get-M42Ticket</span> <span class="str">-Id</span> <span class="var">$TicketId</span>
+<span class="var">$user</span> = <span class="fn">New-ADUser</span> <span class="str">-Name</span> <span class="var">$ticket</span>.FullName `
+  <span class="str">-Department</span> <span class="var">$ticket</span>.Department
+
+<span class="cm"># Add to security groups</span>
+<span class="kw">foreach</span> (<span class="var">$g</span> <span class="kw">in</span> <span class="var">$ticket</span>.Groups) {
+  <span class="fn">Add-ADGroupMember</span> <span class="var">$g</span> <span class="var">$user</span>
+}
+
+<span class="cm"># Create Fudo access</span>
+<span class="var">$fudo</span> = <span class="fn">New-FudoUser</span> <span class="str">-Login</span> <span class="var">$user</span>.Sam
+<span class="fn">Set-FudoPolicy</span> <span class="var">$fudo</span> <span class="var">$ticket</span>.AccessLevel</pre></div>
+  <div class="editor-pane" style="max-width:320px;border-left:2px solid #222"><h4>🧪 Test Results</h4><pre>
+<span class="check">✅</span> Ticket M42-7291 loaded
+<span class="check">✅</span> AD user jdoe created
+<span class="check">✅</span> Added to 3 groups
+<span class="check">✅</span> Fudo user provisioned
+<span class="check">✅</span> Policy RDP-Admins assigned
+<span class="check">✅</span> Cleanup: all test data removed
+
+<span style="color:var(--dim)">Random test users → No conflicts
+→ Auto-cleanup after run</span></pre></div>
+ </div>
+</div>
+
+<!-- S7: Export -->
+<div class="slide">
+ <h2>From Mock to Production in 60 Seconds</h2>
+ <div class="compare">
+  <div><h4 style="font-family:Inter;color:var(--dim);margin-bottom:8px">🧪 Mock</h4><pre><span class="var">$base</span> = <span class="str">"https://localhost:<span class="hl">8443</span>"</span>
+<span class="var">$auth</span> = <span class="str">"<span class="hl">mock-token-123</span>"</span>
+
+<span class="fn">Invoke-RestMethod</span> <span class="var">$base</span>/api/v2/users</pre></div>
+  <div><h4 style="font-family:Inter;color:var(--dim);margin-bottom:8px">🏭 Production</h4><pre><span class="var">$base</span> = <span class="str">"https://<span class="hl">fudo.corp.net</span>"</span>
+<span class="var">$auth</span> = <span class="fn"><span class="hl">Get-OAuth2Token</span></span> `
+  <span class="str">-ClientId</span> <span class="var">$env</span>:FUDO_ID
+
+<span class="fn">Invoke-RestMethod</span> <span class="var">$base</span>/api/v2/users</pre></div>
+ </div>
+ <p style="margin-top:1rem;color:var(--dim);font-size:1.1rem">Same logic. Different endpoints.</p>
+ <div class="auth-list"><span>🔑 API Token</span><span>🔐 OAuth2</span><span>📂 LDAP Bind</span><span>🔒 Basic Auth</span></div>
+</div>
+
+<!-- S8: Access Policies -->
+<div class="slide">
+ <h2>Fudo Access Policies: The Missing Link</h2>
+ <p class="subtitle" style="margin-bottom:.5em">User in group = access to all servers in the safe</p>
+ <div class="chain">
+  <div class="chain-node" style="border-color:var(--cyan)">👤 AD Group<br><small>GRP-RDP-Admins</small></div><div class="chain-arr">→</div>
+  <div class="chain-node" style="border-color:var(--blue)">🔐 Fudo Group<br><small>RDP-Server-Admins</small></div><div class="chain-arr">→</div>
+  <div class="chain-node" style="border-color:var(--purple)">🗄️ Safe<br><small>IT-Administration</small></div><div class="chain-arr">→</div>
+  <div class="chain-node" style="border-color:var(--green)">🖥️ Servers<br><small>DC01, DB-PROD, FS01</small></div>
+ </div>
+ <div class="api-box"><span style="color:var(--green)">POST</span> /api/v2/access-policies<br><span style="color:var(--dim)">{ "user_group_id": 12, "safe_id": 5, "protocol": "rdp" }</span></div>
+</div>
+
+<!-- S9: Numbers -->
+<div class="slide" id="slide-stats">
+ <h2>By the Numbers</h2>
+ <div class="stats">
+  <div class="stat"><div class="num grad" data-to="280">0</div><div class="label">API Endpoints</div></div>
+  <div class="stat"><div class="num grad" data-to="7">0</div><div class="label">Mock Services</div></div>
+  <div class="stat"><div class="num grad" data-to="5">0</div><div class="label">Workflow Templates</div></div>
+  <div class="stat"><div class="num grad" data-to="26">0</div><div class="label">API Calls / Onboarding</div></div>
+  <div class="stat"><div class="num grad" data-to="0" data-prefix="">0</div><div class="label">Production Systems Harmed</div></div>
+ </div>
+ <p class="footer">847ms average test run. Faster than your morning coffee. ☕</p>
+</div>
+
+<!-- S10: CTA -->
+<div class="slide">
+ <h2>Try it. Break stuff. Nobody gets paged.</h2>
+ <div class="term" style="max-width:650px;font-size:.9rem"><span class="prompt">git clone https://github.com/BenediktSchackenberg/PAMlab.git</span><br><span class="prompt">cd PAMlab && docker-compose up</span><br><span style="color:var(--dim)"># Open http://localhost:3000</span></div>
+ <a href="https://github.com/BenediktSchackenberg/PAMlab" target="_blank" class="btn">⭐ View on GitHub</a>
+ <p style="margin-top:1.5rem;color:var(--dim)">Apache 2.0 — Free forever</p>
+ <p style="color:var(--dim);font-size:.85rem;margin-top:.3rem">Built by Benedikt Schackenberg</p>
+</div>
+
+</div>
+
+<!-- Nav -->
+<div class="nav" id="nav">
+ <button id="prevBtn" onclick="go(cur-1)">◀</button>
+ <div id="dots"></div>
+ <button id="nextBtn" onclick="go(cur+1)">▶</button>
+ <button id="playBtn" onclick="togglePlay()" title="Auto-play">⏵</button>
+ <span class="counter" id="counter">1 / 10</span>
+</div>
+
+<script>
+const slides=document.querySelectorAll('.slide'),total=slides.length;
+let cur=0,playing=false,playTimer=null,touchX=0;
+const dots=document.getElementById('dots'),progress=document.getElementById('progress'),counter=document.getElementById('counter');
+
+// build dots
+for(let i=0;i<total;i++){const d=document.createElement('span');d.className='dot'+(i===0?' active':'');d.onclick=()=>go(i);dots.appendChild(d)}
+
+function go(n){
+ if(n<0||n>=total)return;
+ slides[cur].className='slide'+(n>cur?' prev':' prev');
+ cur=n;
+ slides[cur].className='slide active';
+ document.querySelectorAll('.dot').forEach((d,i)=>d.className='dot'+(i===cur?' active':''));
+ progress.style.width=((cur/(total-1))*100)+'%';
+ counter.textContent=(cur+1)+' / '+total;
+ if(cur===4)animateFlow();
+ if(cur===8)animateStats();
+}
+
+// keyboard
+document.addEventListener('keydown',e=>{
+ if(e.key==='ArrowRight'||e.key===' ')go(cur+1);
+ else if(e.key==='ArrowLeft')go(cur-1);
+});
+
+// swipe
+document.addEventListener('touchstart',e=>touchX=e.touches[0].clientX);
+document.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-touchX;if(Math.abs(dx)>50){dx<0?go(cur+1):go(cur-1)}});
+
+// auto-play
+function togglePlay(){
+ playing=!playing;
+ document.getElementById('playBtn').textContent=playing?'⏸':'⏵';
+ if(playing)playTimer=setInterval(()=>{cur<total-1?go(cur+1):(togglePlay())},5000);
+ else clearInterval(playTimer);
+}
+
+// flow animation (slide 5)
+function animateFlow(){
+ const nodes=document.querySelectorAll('#flow .flow-node');
+ nodes.forEach(n=>{n.classList.remove('lit','done')});
+ let ms=0;
+ nodes.forEach((n,i)=>{
+  setTimeout(()=>{n.classList.add('lit');if(i>0)nodes[i-1].classList.add('done')},i*400);
+  ms=i*120+97;
+  setTimeout(()=>document.getElementById('timer').textContent='Total: '+(i*120+97)+'ms',i*400);
+ });
+ setTimeout(()=>{nodes[nodes.length-1].classList.add('done');document.getElementById('timer').textContent='Total: 847ms'},nodes.length*400);
+}
+
+// stat counter (slide 9)
+function animateStats(){
+ document.querySelectorAll('#slide-stats .num').forEach(el=>{
+  const to=+el.dataset.to,dur=1200,start=performance.now();
+  el.textContent='0';
+  (function tick(now){
+   const p=Math.min((now-start)/dur,1);
+   el.textContent=Math.round(to*p)+(to>=280?'+':'');
+   if(p<1)requestAnimationFrame(tick);
+  })(start);
+ });
+}
+</script>
+</body>
+</html>
