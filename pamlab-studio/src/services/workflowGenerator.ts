@@ -66,11 +66,20 @@ function generateStep(step: WorkflowStep, index: number): string {
     const value = step.params[param.id] || param.default || '';
     if (!value) continue;
 
+    // Cross-step references: FROM_STEP_X → $stepXResult.id in PowerShell
+    let resolvedValue = value;
+    const stepRefMatch = value.match(/^FROM_STEP_(\d+)$/);
+    if (stepRefMatch) {
+      // Use PowerShell variable reference in generated script
+      // At runtime in PAMlab, the step resolver handles this
+      resolvedValue = value; // Keep as-is; step resolver handles it at runtime
+    }
+
     // Path parameters go in the URL
     if (path.includes(`{${param.id}}`)) {
-      path = path.replace(`{${param.id}}`, value);
+      path = path.replace(`{${param.id}}`, resolvedValue);
     } else {
-      bodyParams[param.id] = value;
+      bodyParams[param.id] = resolvedValue;
     }
   }
 

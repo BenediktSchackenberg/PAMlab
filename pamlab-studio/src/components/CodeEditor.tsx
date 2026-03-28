@@ -5,6 +5,7 @@ import { parseScript } from '../services/scriptParser';
 import { apiFetch } from '../services/api';
 import { prepareTestRun, executeCleanup, trackCreatedResources, type CleanupPlan } from '../services/testRunner';
 import { loadProductionConfig } from '../services/productionConfig';
+import { resolveStepReferences, extractIds, type StepResults } from '../services/stepResolver';
 
 export default function CodeEditor({ script, onScriptChange, onResults, onNavigate }: {
   script: string;
@@ -88,9 +89,10 @@ export default function CodeEditor({ script, onScriptChange, onResults, onNaviga
 
     const steps: StepResultType[] = [];
     const traffic: ApiResult[] = [];
+    const stepResults: StepResults = {};
 
     for (let i = 0; i < calls.length; i++) {
-      const call = calls[i];
+      const call = resolveStepReferences(calls[i], stepResults);
       try {
         const res = await apiFetch(call.url, call.method, call.body);
         const result: ApiResult = {
@@ -109,6 +111,10 @@ export default function CodeEditor({ script, onScriptChange, onResults, onNaviga
           success: res.status >= 200 && res.status < 400,
           result,
         });
+        // Track step results for cross-step references
+        if (res.status >= 200 && res.status < 400 && res.data) {
+          stepResults[i + 1] = extractIds(res.data);
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         const errResult: ApiResult = { method: call.method, url: call.url, status: 0, statusText: 'Network Error', time: 0, error: msg };
@@ -145,9 +151,10 @@ export default function CodeEditor({ script, onScriptChange, onResults, onNaviga
 
     const steps: StepResultType[] = [];
     const traffic: ApiResult[] = [];
+    const stepResults: StepResults = {};
 
     for (let i = 0; i < calls.length; i++) {
-      const call = calls[i];
+      const call = resolveStepReferences(calls[i], stepResults);
       try {
         const res = await apiFetch(call.url, call.method, call.body);
         const result: ApiResult = {
@@ -156,6 +163,10 @@ export default function CodeEditor({ script, onScriptChange, onResults, onNaviga
         };
         traffic.push(result);
         steps.push({ step: i + 1, description: `${call.method} ${call.url}`, success: res.status >= 200 && res.status < 400, result });
+        // Track step results for cross-step references
+        if (res.status >= 200 && res.status < 400 && res.data) {
+          stepResults[i + 1] = extractIds(res.data);
+        }
         // Track created resources for cleanup
         if (res.status >= 200 && res.status < 400 && res.data) {
           trackCreatedResources(call.url, call.method, res.data, cleanup);

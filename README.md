@@ -281,7 +281,7 @@ Simulates [Fudo Enterprise](https://www.fudosecurity.com/) PAM API v2 with **70+
 </details>
 
 <details>
-<summary><b>Password Policies & JIT Access</b></summary>
+<summary><b>Password Policies & JIT Access & Access Policies</b></summary>
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -292,6 +292,9 @@ Simulates [Fudo Enterprise](https://www.fudosecurity.com/) PAM API v2 with **70+
 | POST | `/api/v2/access-requests/:id/approve` | Approve request |
 | POST | `/api/v2/access-requests/:id/deny` | Deny request |
 | POST | `/api/v2/access-requests/:id/revoke` | Revoke access |
+| GET/POST | `/api/v2/access-policies` | List / create access policies (Group → Safe → Listener) |
+| GET/PUT/DELETE | `/api/v2/access-policies/:id` | Access policy CRUD |
+| GET | `/api/v2/access-policies/check/:user_id/:safe_id` | Check if user has access to a safe |
 </details>
 
 ---
@@ -695,15 +698,88 @@ curl -s http://localhost:8449/api/arsys/v1/entry/HPD%3AHelp%20Desk \
 
 Web-based developer IDE at [http://localhost:3000](http://localhost:3000):
 
-- **📊 Dashboard** — Health status of all 6 APIs at a glance
-- **📋 Scenario Builder** — 16 predefined scenarios covering all systems
-- **📝 Code Editor** — Monaco Editor (VS Code engine) with PowerShell syntax highlighting
-- **▶️ Script Runner** — Execute scripts against mock APIs with real-time results
-- **🔍 API Explorer** — Browse 280+ endpoints, try them interactively
-- **⚡ Event Stream** — Real-time Fudo events via Server-Sent Events
-- **📊 Results Panel** — Step-by-step results + API traffic log
+### 🎉 Welcome & Onboarding
+First-time users see a guided welcome screen with quick-start options:
+- **▶️ Start with a Demo** — loads the Onboarding template and runs it immediately
+- **🔧 Build from Scratch** — jump to the Workflow Builder
+- Quick feature overview of all capabilities
 
-### Predefined Scenarios
+### 📊 Live Dashboard
+Real-time overview of your PAM environment:
+- **Health Monitoring** — all 6 APIs at a glance (green/red status, response times)
+- **Live Stats** — Users, Servers, Groups, Active Sessions, Pending Requests (fetched from Fudo API)
+- **Quick Actions** — one-click to run Onboarding Demo, Emergency Revoke, or build a custom workflow
+- **🔄 Reset Mock Data** — restore all APIs to default state with one click
+
+### 🔧 Workflow Builder
+Visual workflow builder with **5 pre-built templates**:
+
+| Template | Systems | Steps | What it does |
+|----------|---------|-------|-------------|
+| **Employee Onboarding** | Matrix42 → AD → Fudo | 8 | Ticket → User → Groups → PAM User → Access Policy → Close |
+| **Temporary Server Access** | Matrix42 → AD → Fudo | 4 | Ticket → Temp Group → Time-Limited Policy → Close |
+| **Employee Offboarding** | AD → Fudo → ServiceNow | 5 | Remove Groups → Block PAM → Disable AD → Incident |
+| **Emergency Access Revocation** | Fudo → AD → ServiceNow | 5 | 🚨 Block → Disable → Remove → Security Incident |
+| **Project Team Access** | AD → Fudo → Jira | 4 | Group → Web Policy → DB Policy → Jira Issue |
+
+Features:
+- **Template Picker** — browse, preview, and load templates in one click
+- **Step-by-Step Builder** — pick connectors, configure actions, reorder steps
+- **📊 Flow Visualization** — visual diagram with colored nodes per system and live status indicators
+- **Cross-Step References** — Step 6 can use the User ID created in Step 5 (auto-resolved at runtime)
+
+### 📝 Code Editor (Monaco)
+Full VS Code-quality editor with PowerShell syntax highlighting:
+- **▶️ Run** — execute against mock APIs with inline split-view results
+- **🧪 Test Run** — generates random test users (`test-a3f8b`) so templates work repeatedly without conflicts
+- **🐛 Debug** — step-by-step execution with Next/Stop controls
+- **💾 Save** — persist to browser storage
+- **📤 Export** — download as `.ps1` file
+- **🏭 Production** — export with real auth blocks (API tokens, OAuth2, LDAP bind) from your production config
+- **🧹 Cleanup** — after Test Run, delete all created test data with one click
+- **Inline Results** — each step shows status code, response time, and JSON response preview
+
+### 🔍 API Explorer
+Browse **280+ endpoints** across all 6 systems, try them interactively.
+
+### ⚡ Event Stream
+Real-time Fudo PAM events via Server-Sent Events.
+
+### 📜 Run History
+All workflow runs are saved automatically:
+- Timestamp, workflow name, pass/fail badge, duration, test/production flag
+- Expandable rows with full step-by-step details
+- Up to 50 runs stored in browser
+
+### ⚙️ Settings (3 Tabs)
+
+**🧪 Mock APIs** — Configure mock API URLs (defaults work out of the box)
+
+**🏭 Production Config** — Per-system configuration for real environments:
+| System | Auth Methods |
+|--------|-------------|
+| Fudo PAM | API Token |
+| Matrix42 ESM | API Key |
+| Active Directory | LDAP Bind (DN + Password) |
+| ServiceNow | OAuth2 (Client ID/Secret) |
+| Jira Service Mgmt | API Token |
+| BMC Remedy | Basic Auth |
+
+- **Test Connection** per system
+- **Export/Import** config as JSON (passwords masked)
+- Generated scripts automatically include correct auth blocks
+
+**🎨 Preferences** — Export format, keyboard shortcuts reference
+
+### ⌨️ Keyboard Shortcuts
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` | Run script |
+| `Ctrl+S` | Save script |
+| `Ctrl+E` | Export as .ps1 |
+| `Ctrl+1` – `Ctrl+5` | Navigate pages |
+
+### Predefined Scenarios (16)
 
 | Scenario | Systems | What it does |
 |----------|---------|-------------|
@@ -990,7 +1066,7 @@ Security Alert    Fudo PAM        Active Directory    Matrix42 / SNOW / JSM
 | [#9](https://github.com/BenediktSchackenberg/PAMlab/issues/9) | 🧪 **E2E Test Suite** — Automated tests for all APIs | 📋 Planned |
 | [#10](https://github.com/BenediktSchackenberg/PAMlab/issues/10) | 🔗 **Pipeline Engine v2** — All connectors, conditional logic, loops | 📋 Planned |
 | [#11](https://github.com/BenediktSchackenberg/PAMlab/issues/11) | 🔄 **CI/CD + Docker Hub** — GitHub Actions, pre-built images | 📋 Planned |
-| [#12](https://github.com/BenediktSchackenberg/PAMlab/issues/12) | 🖥️ **PAMlab Studio v2** — Live dashboard, Python, CMDB diff | 📋 Planned |
+| [#12](https://github.com/BenediktSchackenberg/PAMlab/issues/12) | 🖥️ **PAMlab Studio v2** — Multi-user collaboration, Python export, CMDB diff viewer | 📋 Planned |
 | [#13](https://github.com/BenediktSchackenberg/PAMlab/issues/13) | 🌐 **GitHub Pages Docs** — Full documentation site | 📋 Planned |
 
 > Want another ITSM system? [Open an issue!](https://github.com/BenediktSchackenberg/PAMlab/issues/new)
