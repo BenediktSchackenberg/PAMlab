@@ -104,14 +104,59 @@ export const connectors: Connector[] = [
         ],
       },
       {
+        id: 'fudo-add-to-group',
+        name: 'Add User to Group',
+        description: 'Add a PAM user to a Fudo group (grants access to linked safes)',
+        method: 'POST',
+        path: '/api/v2/groups/{groupId}/users',
+        params: [
+          { id: 'groupId', label: 'Fudo Group', type: 'select', required: true, options: [
+            { value: 'RDP-Server-Admins', label: 'RDP-Server-Admins (→ IT-Administration Safe)' },
+            { value: 'DB-Operators', label: 'DB-Operators (→ Application-Access Safe)' },
+            { value: 'Integration-Services', label: 'Integration-Services (→ IT-Admin + App Safe)' },
+          ]},
+          { id: 'user_id', label: 'User ID', type: 'text', placeholder: 'uuid', required: true },
+        ],
+      },
+      {
+        id: 'fudo-create-policy',
+        name: 'Create Access Policy',
+        description: 'Define who (group) can access what (safe) via which protocol (listener)',
+        method: 'POST',
+        path: '/api/v2/access-policies',
+        params: [
+          { id: 'name', label: 'Policy Name', type: 'text', placeholder: 'Engineering RDP Access', required: true },
+          { id: 'group_id', label: 'Group', type: 'select', required: true, options: [
+            { value: 'RDP-Server-Admins', label: 'RDP-Server-Admins' },
+            { value: 'DB-Operators', label: 'DB-Operators' },
+            { value: 'Integration-Services', label: 'Integration-Services' },
+          ]},
+          { id: 'safe_id', label: 'Safe (Server Group)', type: 'select', required: true, options: [
+            { value: 'IT-Administration', label: 'IT-Administration (DC01, DB, ERP)' },
+            { value: 'Application-Access', label: 'Application-Access (ERP Server)' },
+            { value: 'File-Server-Access', label: 'File-Server-Access (FileServer01)' },
+            { value: 'Web-Server-Deployment', label: 'Web-Server-Deployment (Web + Citrix)' },
+          ]},
+          { id: 'listener_id', label: 'Protocol', type: 'select', options: [
+            { value: 'rdp', label: 'RDP (Remote Desktop)' },
+            { value: 'ssh', label: 'SSH (Secure Shell)' },
+          ]},
+          { id: 'max_duration_hours', label: 'Max Duration (hours)', type: 'number', placeholder: '8' },
+          { id: 'require_approval', label: 'Require Approval', type: 'select', default: 'false', options: [
+            { value: 'false', label: 'No — direct access' },
+            { value: 'true', label: 'Yes — needs manager approval' },
+          ]},
+        ],
+      },
+      {
         id: 'fudo-access-request',
         name: 'Request Access',
         description: 'Create an access request to a safe/server',
         method: 'POST',
         path: '/api/v2/access-requests',
         params: [
-          { id: 'user_id', label: 'User ID', type: 'text', placeholder: '1', required: true },
-          { id: 'safe_id', label: 'Safe ID', type: 'text', placeholder: '1', required: true },
+          { id: 'user_id', label: 'User ID', type: 'text', placeholder: 'uuid', required: true },
+          { id: 'safe_id', label: 'Safe ID', type: 'text', placeholder: 'uuid', required: true },
           { id: 'justification', label: 'Justification', type: 'text', placeholder: 'Project access needed', required: true },
           { id: 'duration_hours', label: 'Duration (hours)', type: 'number', placeholder: '24', default: '24' },
         ],
@@ -119,7 +164,7 @@ export const connectors: Connector[] = [
       {
         id: 'fudo-block-user',
         name: 'Block User',
-        description: 'Block a Fudo PAM user',
+        description: 'Block a Fudo PAM user (revoke all access)',
         method: 'PUT',
         path: '/api/v2/users/{userId}/block',
         params: [

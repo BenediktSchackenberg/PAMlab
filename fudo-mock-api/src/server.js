@@ -36,6 +36,7 @@ app.use('/api/v2/session-control', authMiddleware, require('./routes/session-con
 app.use('/api/v2/events', authMiddleware, require('./routes/events'));
 app.use('/api/v2/password-policies', authMiddleware, require('./routes/password-policy'));
 app.use('/api/v2/access-requests', authMiddleware, require('./routes/access-requests'));
+app.use('/api/v2/access-policies', authMiddleware, require('./routes/access-policies'));
 
 // Health check
 app.get('/api/v2/health', (req, res) => res.json({ status: 'ok', version: '2.0.0-mock' }));

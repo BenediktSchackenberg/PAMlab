@@ -1,12 +1,12 @@
 import type { AppSettings } from '../types';
 
 const defaultSettings: AppSettings = {
-  fudoUrl: 'http://localhost:8443',
-  matrixUrl: 'http://localhost:8444',
-  adUrl: 'http://localhost:8445',
-  snowUrl: 'http://localhost:8447',
-  jsmUrl: 'http://localhost:8448',
-  remedyUrl: 'http://localhost:8449',
+  fudoUrl: '/api/fudo',
+  matrixUrl: '/api/matrix42',
+  adUrl: '/api/ad',
+  snowUrl: '/api/snow',
+  jsmUrl: '/api/jsm',
+  remedyUrl: '/api/remedy',
   fudoUser: 'admin',
   fudoPass: 'admin',
   theme: 'dark',

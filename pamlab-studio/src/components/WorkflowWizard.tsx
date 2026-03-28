@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Page, Workflow, WorkflowStep } from '../types';
 import { connectors, getConnector, getAction } from '../data/connectors';
 import { generateScript, generateTestScript } from '../services/workflowGenerator';
+import { workflowTemplates } from '../data/workflowTemplates';
 
 // ── Helpers ────────────────────────────────────────────────────────
 let _stepId = 0;
@@ -19,13 +20,22 @@ export default function WorkflowWizard({ onNavigate, onLoadScript }: {
   onNavigate: (p: Page) => void;
   onLoadScript: (s: string) => void;
 }) {
-  const [wizard, setWizard] = useState<'config' | 'steps' | 'review'>('config');
+  const [wizard, setWizard] = useState<'templates' | 'config' | 'steps' | 'review'>('templates');
   const [workflow, setWorkflow] = useState<Workflow>({ ...defaultWorkflow });
   const [addingStep, setAddingStep] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState('');
   const [selectedAction, setSelectedAction] = useState('');
   const [stepParams, setStepParams] = useState<Record<string, string>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  // ── Load template ────────────────────────────────────────────────
+  const loadTemplate = (tpl: Workflow) => {
+    setWorkflow({
+      ...tpl,
+      steps: tpl.steps.map(s => ({ ...s, id: uid() })),
+    });
+    setWizard('steps');
+  };
 
   // ── Step management ──────────────────────────────────────────────
   const addStep = useCallback(() => {
@@ -101,6 +111,61 @@ export default function WorkflowWizard({ onNavigate, onLoadScript }: {
   };
 
   // ── Render: Config ───────────────────────────────────────────────
+  const renderTemplates = () => {
+    const triggerIcons: Record<string, string> = {
+      'manual': '⚙️',
+      'matrix42-ticket': '🎫',
+      'servicenow-request': '📋',
+      'jira-request': '🔷',
+    };
+    return (
+      <div className="space-y-6">
+        <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-100 mb-2">Start from a Template</h3>
+          <p className="text-sm text-gray-500 mb-6">Pre-built workflows for common PAM scenarios. Load one, customize the parameters, generate your script.</p>
+
+          <div className="grid grid-cols-1 gap-4">
+            {workflowTemplates.map((tpl, i) => (
+              <button
+                key={i}
+                onClick={() => loadTemplate(tpl)}
+                className="text-left p-5 bg-gray-900 rounded-lg border border-gray-700 hover:border-blue-500/50 hover:bg-gray-900/80 transition-colors group"
+              >
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl mt-0.5">{triggerIcons[tpl.trigger] || '⚙️'}</span>
+                  <div className="flex-1">
+                    <div className="text-base font-semibold text-gray-100 group-hover:text-blue-400 transition-colors">{tpl.name}</div>
+                    <div className="text-sm text-gray-400 mt-1">{tpl.description}</div>
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      {tpl.steps.map(s => {
+                        const c = getConnector(s.connectorId);
+                        return (
+                          <span key={s.id} className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${c?.color || 'bg-gray-600'} bg-opacity-20 text-gray-300`}>
+                            {c?.icon} {s.label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-600 shrink-0">{tpl.steps.length} steps →</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="text-center text-gray-600 text-sm">— or —</div>
+
+        <button
+          onClick={() => setWizard('config')}
+          className="w-full py-4 border-2 border-dashed border-gray-700 hover:border-blue-500/50 rounded-xl text-gray-400 hover:text-blue-400 text-sm transition-colors"
+        >
+          ✨ Start from Scratch
+        </button>
+      </div>
+    );
+  };
+
   const renderConfig = () => (
     <div className="space-y-6">
       <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
@@ -143,13 +208,18 @@ export default function WorkflowWizard({ onNavigate, onLoadScript }: {
         </div>
       </div>
 
-      <button
-        onClick={() => setWizard('steps')}
-        disabled={!workflow.name}
-        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
-      >
-        Next: Add Steps →
-      </button>
+      <div className="flex gap-3">
+        <button onClick={() => setWizard('templates')} className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+          ← Templates
+        </button>
+        <button
+          onClick={() => setWizard('steps')}
+          disabled={!workflow.name}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          Next: Add Steps →
+        </button>
+      </div>
     </div>
   );
 
@@ -405,17 +475,18 @@ export default function WorkflowWizard({ onNavigate, onLoadScript }: {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-100">Workflow Builder</h2>
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          {(['config', 'steps', 'review'] as const).map((step, i) => (
+          {(['templates', 'config', 'steps', 'review'] as const).map((step, i) => (
             <div key={step} className="flex items-center gap-2">
               {i > 0 && <span className="text-gray-700">→</span>}
               <span className={wizard === step ? 'text-blue-400 font-medium' : ''}>
-                {i + 1}. {step === 'config' ? 'Configure' : step === 'steps' ? 'Add Steps' : 'Review'}
+                {step === 'templates' ? '📋 Templates' : step === 'config' ? '⚙️ Configure' : step === 'steps' ? '🔗 Steps' : '✅ Review'}
               </span>
             </div>
           ))}
         </div>
       </div>
 
+      {wizard === 'templates' && renderTemplates()}
       {wizard === 'config' && renderConfig()}
       {wizard === 'steps' && renderSteps()}
       {wizard === 'review' && renderReview()}

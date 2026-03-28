@@ -6,9 +6,9 @@ const hour = h => { const d = new Date(); d.setHours(d.getHours() - h); return d
 // IDs
 const ids = {
   users: { admin: uuidv4(), svcIntegration: uuidv4(), jdoe: uuidv4(), asmith: uuidv4(), itOps: uuidv4() },
-  servers: { dc01: uuidv4(), dbProd: uuidv4(), appErp: uuidv4() },
-  accounts: { adminDc01: uuidv4(), postgresDb: uuidv4(), erpAdmin: uuidv4() },
-  safes: { itAdmin: uuidv4(), appAccess: uuidv4() },
+  servers: { dc01: uuidv4(), dbProd: uuidv4(), appErp: uuidv4(), fileserver01: uuidv4(), webProd: uuidv4(), citrix01: uuidv4() },
+  accounts: { adminDc01: uuidv4(), postgresDb: uuidv4(), erpAdmin: uuidv4(), adminFile: uuidv4(), deployWeb: uuidv4(), adminCitrix: uuidv4() },
+  safes: { itAdmin: uuidv4(), appAccess: uuidv4(), fileAccess: uuidv4(), webServers: uuidv4() },
   listeners: { ssh: uuidv4(), rdp: uuidv4() },
   pools: { production: uuidv4() },
 };
@@ -25,17 +25,25 @@ const servers = [
   { id: ids.servers.dc01, name: 'dc01.corp.local', address: '10.10.1.10', port: 3389, protocol: 'rdp', description: 'Primary Domain Controller', os: 'Windows Server 2022', status: 'online', created_at: '2024-01-15T08:00:00Z', modified_at: now },
   { id: ids.servers.dbProd, name: 'db-prod.corp.local', address: '10.10.2.20', port: 5432, protocol: 'ssh', description: 'Production PostgreSQL Database', os: 'Ubuntu 22.04 LTS', status: 'online', created_at: '2024-01-15T08:00:00Z', modified_at: now },
   { id: ids.servers.appErp, name: 'app-erp.corp.local', address: '10.10.3.30', port: 22, protocol: 'ssh', description: 'ERP Application Server', os: 'RHEL 9', status: 'online', created_at: '2024-02-01T08:00:00Z', modified_at: now },
+  { id: ids.servers.fileserver01, name: 'fileserver01.corp.local', address: '10.10.1.50', port: 3389, protocol: 'rdp', description: 'Central File Server', os: 'Windows Server 2022', status: 'online', created_at: '2024-03-01T08:00:00Z', modified_at: now },
+  { id: ids.servers.webProd, name: 'web-prod.corp.local', address: '10.10.4.10', port: 22, protocol: 'ssh', description: 'Production Web Servers', os: 'Ubuntu 24.04 LTS', status: 'online', created_at: '2024-06-01T08:00:00Z', modified_at: now },
+  { id: ids.servers.citrix01, name: 'citrix01.corp.local', address: '10.10.5.10', port: 3389, protocol: 'rdp', description: 'Citrix Virtual Desktop Host', os: 'Windows Server 2025', status: 'online', created_at: '2025-01-15T08:00:00Z', modified_at: now },
 ];
 
 const accounts = [
   { id: ids.accounts.adminDc01, name: 'Administrator@dc01', login: 'Administrator', server_id: ids.servers.dc01, server_name: 'dc01.corp.local', type: 'regular', status: 'active', password_change_required: false, created_at: '2024-01-15T08:00:00Z', modified_at: now },
   { id: ids.accounts.postgresDb, name: 'postgres@db-prod', login: 'postgres', server_id: ids.servers.dbProd, server_name: 'db-prod.corp.local', type: 'regular', status: 'active', password_change_required: false, created_at: '2024-01-15T08:00:00Z', modified_at: now },
   { id: ids.accounts.erpAdmin, name: 'erp-admin@app-erp', login: 'erp-admin', server_id: ids.servers.appErp, server_name: 'app-erp.corp.local', type: 'regular', status: 'active', password_change_required: true, created_at: '2024-02-01T08:00:00Z', modified_at: now },
+  { id: ids.accounts.adminFile, name: 'FileAdmin@fileserver01', login: 'FileAdmin', server_id: ids.servers.fileserver01, server_name: 'fileserver01.corp.local', type: 'regular', status: 'active', password_change_required: false, created_at: '2024-03-01T08:00:00Z', modified_at: now },
+  { id: ids.accounts.deployWeb, name: 'deploy@web-prod', login: 'deploy', server_id: ids.servers.webProd, server_name: 'web-prod.corp.local', type: 'regular', status: 'active', password_change_required: false, created_at: '2024-06-01T08:00:00Z', modified_at: now },
+  { id: ids.accounts.adminCitrix, name: 'CitrixAdmin@citrix01', login: 'CitrixAdmin', server_id: ids.servers.citrix01, server_name: 'citrix01.corp.local', type: 'regular', status: 'active', password_change_required: false, created_at: '2025-01-15T08:00:00Z', modified_at: now },
 ];
 
 const safes = [
   { id: ids.safes.itAdmin, name: 'IT-Administration', description: 'Full access for IT administrators', policy: 'allow_all', created_at: '2024-01-15T08:00:00Z', modified_at: now },
   { id: ids.safes.appAccess, name: 'Application-Access', description: 'Restricted access to business applications', policy: 'time_restricted', created_at: '2024-03-01T08:00:00Z', modified_at: now },
+  { id: ids.safes.fileAccess, name: 'File-Server-Access', description: 'Access to central file server for departments', policy: 'business_hours', created_at: '2024-03-01T08:00:00Z', modified_at: now },
+  { id: ids.safes.webServers, name: 'Web-Server-Deployment', description: 'Deployment access to production web infrastructure', policy: 'approval_required', created_at: '2024-06-01T08:00:00Z', modified_at: now },
 ];
 
 // Relations
@@ -52,6 +60,9 @@ const safeAccounts = [
   { safe_id: ids.safes.itAdmin, account_id: ids.accounts.postgresDb },
   { safe_id: ids.safes.itAdmin, account_id: ids.accounts.erpAdmin },
   { safe_id: ids.safes.appAccess, account_id: ids.accounts.erpAdmin },
+  { safe_id: ids.safes.fileAccess, account_id: ids.accounts.adminFile },
+  { safe_id: ids.safes.webServers, account_id: ids.accounts.deployWeb },
+  { safe_id: ids.safes.webServers, account_id: ids.accounts.adminCitrix },
 ];
 
 const accountManagers = [
@@ -67,7 +78,7 @@ const listeners = [
 ];
 
 const pools = [
-  { id: ids.pools.production, name: 'Production-Servers', description: 'All production infrastructure servers', server_ids: [ids.servers.dc01, ids.servers.dbProd, ids.servers.appErp], created_at: '2024-02-01T08:00:00Z', modified_at: now },
+  { id: ids.pools.production, name: 'Production-Servers', description: 'All production infrastructure servers', server_ids: [ids.servers.dc01, ids.servers.dbProd, ids.servers.appErp, ids.servers.fileserver01, ids.servers.webProd, ids.servers.citrix01], created_at: '2024-02-01T08:00:00Z', modified_at: now },
 ];
 
 const sessions = [
@@ -175,4 +186,11 @@ const passwordRotationHistory = [
   { id: uuidv4(), policy_id: passwordPolicies[0].id, account_id: ids.accounts.erpAdmin, account_name: 'erp-admin@app-erp', status: 'success', rotated_at: hour(14) },
 ];
 
-module.exports = { users, servers, accounts, safes, safeUsers, safeAccounts, accountManagers, listeners, pools, sessions, authMethods, groups, groupUsers, groupSafes, userDirectoryConfig, events, passwordPolicies, accessRequests, webhooks, passwordRotationHistory, ids };
+// Access Policies: Group → Safe → Listener (core Fudo access control)
+const accessPolicies = [
+  { id: uuidv4(), name: 'IT-Admin Full Access', group_id: ids.groups.rdpAdmins, group_name: 'RDP-Server-Admins', safe_id: ids.safes.itAdmin, safe_name: 'IT-Administration', listener_id: ids.listeners.rdp, listener_name: 'RDP-Listener', time_restriction: null, require_approval: false, max_duration_hours: null, record_session: true, status: 'active', created_at: '2024-02-01T08:00:00Z', modified_at: now },
+  { id: uuidv4(), name: 'DB Team App Access', group_id: ids.groups.dbOperators, group_name: 'DB-Operators', safe_id: ids.safes.appAccess, safe_name: 'Application-Access', listener_id: ids.listeners.ssh, listener_name: 'SSH-Listener', time_restriction: { days: ['mon','tue','wed','thu','fri'], start: '08:00', end: '18:00' }, require_approval: false, max_duration_hours: 8, record_session: true, status: 'active', created_at: '2024-03-15T08:00:00Z', modified_at: now },
+  { id: uuidv4(), name: 'Integration Services', group_id: ids.groups.integrationServices, group_name: 'Integration-Services', safe_id: ids.safes.itAdmin, safe_name: 'IT-Administration', listener_id: null, listener_name: null, time_restriction: null, require_approval: false, max_duration_hours: 2, record_session: true, status: 'active', created_at: '2025-06-01T10:00:00Z', modified_at: now },
+];
+
+module.exports = { users, servers, accounts, safes, safeUsers, safeAccounts, accountManagers, listeners, pools, sessions, authMethods, groups, groupUsers, groupSafes, accessPolicies, userDirectoryConfig, events, passwordPolicies, accessRequests, webhooks, passwordRotationHistory, ids };

@@ -16,6 +16,7 @@ const store = {
   groups: [...seed.groups],
   groupUsers: [...seed.groupUsers],
   groupSafes: [...seed.groupSafes],
+  accessPolicies: [...(seed.accessPolicies || [])],
   userDirectoryConfig: { ...seed.userDirectoryConfig },
   events: [...seed.events],
   passwordPolicies: [...seed.passwordPolicies],
