@@ -44,6 +44,22 @@ app.get('/pipelines', (req, res) => {
   }
 });
 
+// --- GET /pipelines/runs — Letzte Runs auflisten (BEFORE :name to avoid conflict) ---
+app.get('/pipelines/runs', (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const runs = runner.getRuns(limit);
+  res.json({ runs });
+});
+
+// --- GET /pipelines/runs/:id — Run-Details ---
+app.get('/pipelines/runs/:id', (req, res) => {
+  const run = runner.getRun(req.params.id);
+  if (!run) {
+    return res.status(404).json({ error: `Run "${req.params.id}" nicht gefunden` });
+  }
+  res.json(run);
+});
+
 // --- GET /pipelines/:name — Pipeline-Definition abrufen ---
 app.get('/pipelines/:name', (req, res) => {
   try {
@@ -104,22 +120,6 @@ app.post('/pipelines/run', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
-
-// --- GET /pipelines/runs — Letzte Runs auflisten ---
-app.get('/pipelines/runs', (req, res) => {
-  const limit = parseInt(req.query.limit) || 50;
-  const runs = runner.getRuns(limit);
-  res.json({ runs });
-});
-
-// --- GET /pipelines/runs/:id — Run-Details ---
-app.get('/pipelines/runs/:id', (req, res) => {
-  const run = runner.getRun(req.params.id);
-  if (!run) {
-    return res.status(404).json({ error: `Run "${req.params.id}" nicht gefunden` });
-  }
-  res.json(run);
 });
 
 // --- GET /connectors — Registrierte Connectors ---

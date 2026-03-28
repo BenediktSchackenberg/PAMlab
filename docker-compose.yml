@@ -11,7 +11,7 @@ services:
       - PORT=8443
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8443/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8443/api/v2/health"]
       interval: 30s
       timeout: 5s
       retries: 3

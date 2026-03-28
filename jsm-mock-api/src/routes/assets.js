@@ -3,6 +3,28 @@ const { v4: uuidv4 } = require('uuid');
 const store = require('../data/store');
 const router = express.Router();
 
+// --- Shared AQL filter logic ---
+function filterByAql(aql) {
+  let results = [...store.assets.objects];
+  // Support basic attribute=value
+  const match = aql.match(/(\w[\w\s]*?)\s*=\s*"?([^"]+)"?/);
+  if (match) {
+    const [, attrName, attrValue] = match;
+    results = results.filter(o => o.attributes && o.attributes.some(a => a.name.toLowerCase() === attrName.trim().toLowerCase() && a.value.toLowerCase().includes(attrValue.trim().toLowerCase())));
+  }
+  // Support objectType filter
+  const typeMatch = aql.match(/objectType\s*=\s*"?([^"]+)"?/i);
+  if (typeMatch) {
+    results = results.filter(o => o.objectType && o.objectType.name.toLowerCase() === typeMatch[1].trim().toLowerCase());
+  }
+  // Support Name filter
+  const nameMatch = aql.match(/Name\s*=\s*"?([^"]+)"?/i);
+  if (nameMatch) {
+    results = results.filter(o => o.name.toLowerCase().includes(nameMatch[1].trim().toLowerCase()));
+  }
+  return results;
+}
+
 // List schemas
 router.get('/objectschema/list', (req, res) => {
   res.json({ objectschemas: store.assets.schemas });
@@ -36,26 +58,17 @@ router.put('/object/:objectId', (req, res) => {
   res.json(obj);
 });
 
-// AQL search (simplified)
+// AQL search — GET
 router.get('/object/aql', (req, res) => {
   const aql = req.query.aql || '';
-  let results = [...store.assets.objects];
-  // Support basic attribute=value
-  const match = aql.match(/(\w[\w\s]*?)\s*=\s*"?([^"]+)"?/);
-  if (match) {
-    const [, attrName, attrValue] = match;
-    results = results.filter(o => o.attributes && o.attributes.some(a => a.name.toLowerCase() === attrName.trim().toLowerCase() && a.value.toLowerCase().includes(attrValue.trim().toLowerCase())));
-  }
-  // Support objectType filter
-  const typeMatch = aql.match(/objectType\s*=\s*"?([^"]+)"?/i);
-  if (typeMatch) {
-    results = results.filter(o => o.objectType && o.objectType.name.toLowerCase() === typeMatch[1].trim().toLowerCase());
-  }
-  // Support Name filter
-  const nameMatch = aql.match(/Name\s*=\s*"?([^"]+)"?/i);
-  if (nameMatch) {
-    results = results.filter(o => o.name.toLowerCase().includes(nameMatch[1].trim().toLowerCase()));
-  }
+  const results = filterByAql(aql);
+  res.json({ objectEntries: results, totalFilterCount: results.length });
+});
+
+// AQL search — POST (same logic, AQL in body)
+router.post('/object/aql', (req, res) => {
+  const aql = req.body.aql || req.body.qlQuery || '';
+  const results = filterByAql(aql);
   res.json({ objectEntries: results, totalFilterCount: results.length });
 });
 

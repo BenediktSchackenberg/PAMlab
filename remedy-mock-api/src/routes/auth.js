@@ -9,10 +9,15 @@ router.post('/login', (req, res) => {
   if (!username) {
     return res.status(400).send('Username is required');
   }
-  // Mock: accept any known user
+  // Validate against known users in CTM:People
   const person = store.forms['CTM:People'].find(p => p['Login ID'] === username);
   if (!person) {
     return res.status(401).send('Authentication failed');
+  }
+  // Mock password validation: accept "admin", "admin123", "Password1!", or the login ID as password
+  const validPasswords = ['admin', 'admin123', 'Password1!', username];
+  if (!password || !validPasswords.includes(password)) {
+    return res.status(401).send('Authentication failed: invalid password');
   }
   const token = uuidv4();
   store.jwt_sessions.push({ token, user: username, created: new Date().toISOString() });
