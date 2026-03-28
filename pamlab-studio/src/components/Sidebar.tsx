@@ -2,6 +2,7 @@ import type { Page } from '../types';
 
 const navItems: { id: Page; icon: string; label: string }[] = [
   { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+  { id: 'workflow', icon: '🔧', label: 'Workflow Builder' },
   { id: 'scenarios', icon: '📋', label: 'Scenarios' },
   { id: 'editor', icon: '📝', label: 'Code Editor' },
   { id: 'explorer', icon: '🔍', label: 'API Explorer' },

@@ -3,6 +3,7 @@ import type { Page, ApiResult, StepResultType } from './types';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import ScenarioBuilder from './components/ScenarioBuilder';
+import WorkflowWizard from './components/WorkflowWizard';
 import CodeEditor from './components/CodeEditor';
 import ResultsPanel from './components/ResultsPanel';
 import ApiExplorer from './components/ApiExplorer';
@@ -24,6 +25,7 @@ export default function App() {
     switch (page) {
       case 'dashboard': return <Dashboard onNavigate={setPage} />;
       case 'scenarios': return <ScenarioBuilder onNavigate={setPage} onLoadScript={setScript} />;
+      case 'workflow': return <WorkflowWizard onNavigate={setPage} onLoadScript={setScript} />;
       case 'editor': return <CodeEditor script={script} onScriptChange={setScript} onResults={handleResults} />;
       case 'results': return <ResultsPanel steps={steps} traffic={traffic} />;
       case 'explorer': return <ApiExplorer />;

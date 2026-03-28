@@ -61,8 +61,11 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
       </div>
 
       <div className="flex gap-3">
-        <button onClick={() => onNavigate('scenarios')} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-          📋 New Scenario
+        <button onClick={() => onNavigate('workflow')} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+          🔧 Build Workflow
+        </button>
+        <button onClick={() => onNavigate('scenarios')} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
+          📋 Scenarios
         </button>
         <button onClick={() => onNavigate('explorer')} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
           🔍 API Explorer
