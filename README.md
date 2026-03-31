@@ -7,6 +7,7 @@
 **Build, test, and debug PAM integrations without touching production.**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/PAMlab/pamlab/actions/workflows/ci.yml/badge.svg)](https://github.com/PAMlab/pamlab/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Signed Commits Required](https://img.shields.io/badge/commits-signed_only-important)](CONTRIBUTING.md#commit-requirements)
 

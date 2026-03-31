@@ -79,6 +79,7 @@ services:
       - SNOW_URL=http://servicenow-mock:8447
       - JSM_URL=http://jsm-mock:8448
       - REMEDY_URL=http://remedy-mock:8449
+      - CYBERARK_URL=http://cyberark-mock:8450
     depends_on:
       fudo-mock:
         condition: service_healthy
@@ -127,6 +128,22 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8449/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  cyberark-mock:
+    build:
+      context: ./cyberark-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-cyberark
+    ports:
+      - "8450:8450"
+    environment:
+      - PORT=8450
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8450/health"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -1,0 +1,19 @@
+{
+  "name": "cyberark-mock-api",
+  "version": "1.0.0",
+  "description": "Mock Server für CyberArk PVWA REST API v12+ (Entwicklung & Testing)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --verbose --forceExit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}

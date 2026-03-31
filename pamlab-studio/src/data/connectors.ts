@@ -334,6 +334,119 @@ export const connectors: Connector[] = [
       },
     ],
   },
+  // ── CyberArk PVWA ──────────────────────────────────────────────────
+  {
+    id: 'cyberark',
+    name: 'CyberArk PVWA',
+    icon: '🔐',
+    color: 'bg-purple-600',
+    description: 'Privileged Access Management — safes, accounts, password rotation, session monitoring',
+    actions: [
+      {
+        id: 'cyberark-list-safes',
+        name: 'List Safes',
+        description: 'List all CyberArk safes',
+        method: 'GET',
+        path: '/api/Safes',
+        params: [],
+      },
+      {
+        id: 'cyberark-create-safe',
+        name: 'Create Safe',
+        description: 'Create a new safe',
+        method: 'POST',
+        path: '/api/Safes',
+        params: [
+          { id: 'SafeName', label: 'Safe Name', type: 'text', placeholder: 'New-Safe', required: true },
+          { id: 'Description', label: 'Description', type: 'text', placeholder: 'Safe description' },
+        ],
+      },
+      {
+        id: 'cyberark-list-accounts',
+        name: 'List Accounts',
+        description: 'Search/list privileged accounts',
+        method: 'GET',
+        path: '/api/Accounts',
+        params: [
+          { id: 'search', label: 'Search', type: 'text', placeholder: 'Administrator' },
+          { id: 'SafeName', label: 'Safe Name', type: 'select', options: [
+            { value: 'IT-Admins', label: 'IT-Admins' },
+            { value: 'DB-Credentials', label: 'DB-Credentials' },
+            { value: 'Application-Accounts', label: 'Application-Accounts' },
+            { value: 'Cloud-Keys', label: 'Cloud-Keys' },
+          ]},
+        ],
+      },
+      {
+        id: 'cyberark-retrieve-password',
+        name: 'Retrieve Password',
+        description: 'Checkout/retrieve account password',
+        method: 'POST',
+        path: '/api/Accounts/{id}/Password/Retrieve',
+        params: [
+          { id: 'id', label: 'Account ID', type: 'text', placeholder: 'acc-001', required: true },
+        ],
+      },
+      {
+        id: 'cyberark-change-password',
+        name: 'Change Password',
+        description: 'Initiate CPM password change',
+        method: 'POST',
+        path: '/api/Accounts/{id}/Change',
+        params: [
+          { id: 'id', label: 'Account ID', type: 'text', placeholder: 'acc-001', required: true },
+        ],
+      },
+      {
+        id: 'cyberark-list-sessions',
+        name: 'List PSM Sessions',
+        description: 'List active PSM sessions',
+        method: 'GET',
+        path: '/api/LiveSessions',
+        params: [],
+      },
+      {
+        id: 'cyberark-terminate-session',
+        name: 'Terminate Session',
+        description: 'Terminate an active PSM session',
+        method: 'POST',
+        path: '/api/LiveSessions/{sessionId}/Terminate',
+        params: [
+          { id: 'sessionId', label: 'Session ID', type: 'text', placeholder: 'psm-001', required: true },
+        ],
+      },
+      {
+        id: 'cyberark-list-users',
+        name: 'List Users',
+        description: 'List CyberArk vault users',
+        method: 'GET',
+        path: '/api/Users',
+        params: [],
+      },
+      {
+        id: 'cyberark-create-user',
+        name: 'Create User',
+        description: 'Create a new vault user',
+        method: 'POST',
+        path: '/api/Users',
+        params: [
+          { id: 'username', label: 'Username', type: 'text', placeholder: 'newuser', required: true },
+          { id: 'userType', label: 'User Type', type: 'select', options: [
+            { value: 'EPVUser', label: 'EPVUser' },
+            { value: 'AppProvider', label: 'AppProvider' },
+          ]},
+        ],
+      },
+      {
+        id: 'cyberark-system-health',
+        name: 'System Health',
+        description: 'Check system component health',
+        method: 'GET',
+        path: '/api/ComponentsMonitoringDetails',
+        params: [],
+      },
+    ],
+  },
 ];
 
 /** Get a connector by ID */

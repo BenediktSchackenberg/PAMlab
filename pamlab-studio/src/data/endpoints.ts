@@ -176,4 +176,55 @@ export const apiEndpoints: ApiEndpointGroup[] = [
       { method: 'DELETE', path: '/api/arsys/v1/webhook/{id}', description: 'Delete webhook', parameters: [{ name: 'id', type: 'string', required: true, description: 'Webhook ID' }] },
     ],
   },
+  {
+    api: 'CyberArk PVWA',
+    baseUrl: 'http://localhost:8450',
+    endpoints: [
+      { method: 'GET', path: '/health', description: 'Health check', exampleResponse: { status: 'ok', service: 'cyberark-mock-api' } },
+      // Auth
+      { method: 'POST', path: '/api/auth/Cyberark/Logon', description: 'Authenticate (CyberArk)', parameters: [{ name: 'username', type: 'string', required: true, description: 'Username' }, { name: 'password', type: 'string', required: true, description: 'Password' }], exampleRequest: { username: 'Administrator', password: 'Cyberark1!' }, exampleResponse: '"<session-token>"' },
+      { method: 'POST', path: '/api/auth/Logoff', description: 'Logoff session' },
+      // Safes
+      { method: 'GET', path: '/api/Safes', description: 'List all safes (pagination: offset, limit)', exampleResponse: { value: [{ SafeUrlId: 'IT-Admins', SafeName: 'IT-Admins' }], count: 4 } },
+      { method: 'GET', path: '/api/Safes/{safeUrlId}', description: 'Get safe by URL ID', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }] },
+      { method: 'POST', path: '/api/Safes', description: 'Create safe', parameters: [{ name: 'SafeName', type: 'string', required: true, description: 'Safe name' }, { name: 'Description', type: 'string', required: false, description: 'Description' }], exampleRequest: { SafeName: 'New-Safe', Description: 'A new safe' } },
+      { method: 'PUT', path: '/api/Safes/{safeUrlId}', description: 'Update safe', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }] },
+      { method: 'DELETE', path: '/api/Safes/{safeUrlId}', description: 'Delete safe', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }] },
+      { method: 'GET', path: '/api/Safes/{safeUrlId}/Members', description: 'List safe members', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }] },
+      { method: 'POST', path: '/api/Safes/{safeUrlId}/Members', description: 'Add safe member', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }, { name: 'MemberName', type: 'string', required: true, description: 'Member name' }] },
+      { method: 'DELETE', path: '/api/Safes/{safeUrlId}/Members/{memberName}', description: 'Remove safe member', parameters: [{ name: 'safeUrlId', type: 'string', required: true, description: 'Safe URL ID' }, { name: 'memberName', type: 'string', required: true, description: 'Member name' }] },
+      // Accounts
+      { method: 'GET', path: '/api/Accounts', description: 'List/search accounts (search, filter, offset, limit)', exampleResponse: { value: [{ id: 'acc-001', userName: 'Administrator' }], count: 12 } },
+      { method: 'GET', path: '/api/Accounts/{id}', description: 'Get account by ID', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts', description: 'Create account', parameters: [{ name: 'safeName', type: 'string', required: true, description: 'Safe name' }, { name: 'platformId', type: 'string', required: true, description: 'Platform ID' }, { name: 'address', type: 'string', required: true, description: 'Target address' }, { name: 'userName', type: 'string', required: true, description: 'Account username' }], exampleRequest: { safeName: 'IT-Admins', platformId: 'UnixSSH', address: 'server.local', userName: 'root' } },
+      { method: 'DELETE', path: '/api/Accounts/{id}', description: 'Delete account', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts/{id}/Password/Retrieve', description: 'Retrieve (checkout) password', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts/{id}/CheckIn', description: 'Check in account', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts/{id}/Change', description: 'Initiate password change', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts/{id}/Verify', description: 'Verify password', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      { method: 'POST', path: '/api/Accounts/{id}/Reconcile', description: 'Reconcile password', parameters: [{ name: 'id', type: 'string', required: true, description: 'Account ID' }] },
+      // Platforms
+      { method: 'GET', path: '/api/Platforms', description: 'List platforms', exampleResponse: { Platforms: [{ PlatformID: 'WinDomain', Active: true }], Total: 5 } },
+      { method: 'GET', path: '/api/Platforms/{platformId}', description: 'Get platform', parameters: [{ name: 'platformId', type: 'string', required: true, description: 'Platform ID' }] },
+      { method: 'POST', path: '/api/Platforms/{platformId}/Activate', description: 'Activate platform', parameters: [{ name: 'platformId', type: 'string', required: true, description: 'Platform ID' }] },
+      { method: 'POST', path: '/api/Platforms/{platformId}/Deactivate', description: 'Deactivate platform', parameters: [{ name: 'platformId', type: 'string', required: true, description: 'Platform ID' }] },
+      // Users
+      { method: 'GET', path: '/api/Users', description: 'List users', exampleResponse: { Users: [{ id: 2, username: 'Administrator' }], Total: 6 } },
+      { method: 'POST', path: '/api/Users', description: 'Create user', parameters: [{ name: 'username', type: 'string', required: true, description: 'Username' }], exampleRequest: { username: 'newuser', personalDetails: { firstName: 'New', lastName: 'User' } } },
+      { method: 'POST', path: '/api/Users/{id}/Activate', description: 'Activate user', parameters: [{ name: 'id', type: 'number', required: true, description: 'User ID' }] },
+      { method: 'POST', path: '/api/Users/{id}/Deactivate', description: 'Suspend user', parameters: [{ name: 'id', type: 'number', required: true, description: 'User ID' }] },
+      { method: 'POST', path: '/api/Users/{id}/ResetPassword', description: 'Reset user password', parameters: [{ name: 'id', type: 'number', required: true, description: 'User ID' }] },
+      // Groups
+      { method: 'GET', path: '/api/UserGroups', description: 'List user groups' },
+      { method: 'POST', path: '/api/UserGroups', description: 'Create group', parameters: [{ name: 'groupName', type: 'string', required: true, description: 'Group name' }] },
+      { method: 'POST', path: '/api/UserGroups/{id}/Members', description: 'Add member to group', parameters: [{ name: 'id', type: 'number', required: true, description: 'Group ID' }, { name: 'memberId', type: 'number', required: true, description: 'User ID' }] },
+      { method: 'DELETE', path: '/api/UserGroups/{id}/Members/{memberId}', description: 'Remove member from group', parameters: [{ name: 'id', type: 'number', required: true, description: 'Group ID' }, { name: 'memberId', type: 'number', required: true, description: 'User ID' }] },
+      // Sessions
+      { method: 'GET', path: '/api/LiveSessions', description: 'List PSM sessions', exampleResponse: { LiveSessions: [{ SessionID: 'psm-001', User: 'operator1', IsLive: true }], Total: 4 } },
+      { method: 'POST', path: '/api/LiveSessions/{sessionId}/Terminate', description: 'Terminate PSM session', parameters: [{ name: 'sessionId', type: 'string', required: true, description: 'Session ID' }] },
+      // System Health
+      { method: 'GET', path: '/api/ComponentsMonitoringDetails', description: 'System health overview' },
+      { method: 'GET', path: '/api/Server', description: 'Server info' },
+    ],
+  },
 ];
