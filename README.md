@@ -12,10 +12,12 @@
 [![Signed Commits Required](https://img.shields.io/badge/commits-signed_only-important)](CONTRIBUTING.md#commit-requirements)
 
 [Getting Started](#-getting-started) •
+[Your First Workflow](#-your-first-workflow--step-by-step) •
 [Architecture](#-architecture) •
 [Mock APIs](#-mock-apis) •
 [PowerShell Scripts](#-powershell-automation) •
 [PAMlab Studio](#-pamlab-studio) •
+[Testing](#-testing) •
 [Contributing](#-contributing)
 
 </div>
@@ -147,6 +149,215 @@ curl -s "http://localhost:8449/api/arsys/v1/entry/HPD%3AHelp%20Desk" \
 ```
 
 > **Default API token for all services:** `pamlab-dev-token`
+
+
+---
+
+## 🎓 Your First Workflow — Step by Step
+
+You're an IT engineer. Your task: **When HR creates an onboarding ticket, automatically provision the new employee across all systems.** Here's how to build and test that with PAMlab.
+
+### Step 0: Start the Stack
+
+```bash
+docker-compose up    # or use ./scripts/test-all.sh --install for testing
+```
+
+All services are now running. Let's build the workflow step by step using `curl`.
+
+### Step 1: HR Creates an Access Request (Matrix42)
+
+A new employee "Sarah Connor" is joining. HR opens a ticket:
+
+```bash
+# Create onboarding ticket in Matrix42
+curl -s -X POST http://localhost:8444/m42Services/api/tickets \
+  -H "Authorization: Bearer pamlab-dev-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "Onboarding: Sarah Connor",
+    "description": "New hire — Engineering department, starting April 1st",
+    "type": "access-request",
+    "priority": "high"
+  }' | jq .
+
+# → Returns ticket with ID, TicketNumber, Status: "New"
+```
+
+### Step 2: Create the AD Account (Active Directory)
+
+The ticket is approved. Time to create the user:
+
+```bash
+# Authenticate with AD
+AD_TOKEN=$(curl -s -X POST http://localhost:8445/api/ad/auth/bind \
+  -H "Content-Type: application/json" \
+  -d '{"dn":"CN=Administrator,OU=Users,DC=corp,DC=local","password":"admin123"}' \
+  | jq -r '.token')
+
+# Create the user
+curl -s -X POST http://localhost:8445/api/ad/users \
+  -H "Authorization: Bearer $AD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sAMAccountName": "s.connor",
+    "cn": "Sarah Connor",
+    "givenName": "Sarah",
+    "sn": "Connor",
+    "department": "Engineering",
+    "title": "Software Engineer",
+    "mail": "s.connor@corp.local"
+  }' | jq .
+
+# → Returns user with objectGUID, distinguishedName, memberOf: []
+```
+
+### Step 3: Assign to Security Groups (Active Directory)
+
+Sarah needs server access:
+
+```bash
+# Add to the Server-Admins group
+curl -s -X POST http://localhost:8445/api/ad/groups/Server-Admins/members \
+  -H "Authorization: Bearer $AD_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"members": ["s.connor"]}' | jq .
+
+# → Returns { added: ["s.connor"], group: "Server-Admins" }
+
+# Verify: check her group membership
+curl -s http://localhost:8445/api/ad/users/s.connor/groups \
+  -H "Authorization: Bearer $AD_TOKEN" | jq .
+
+# → Shows Server-Admins in her memberOf list
+```
+
+### Step 4: Create Fudo PAM User (Privileged Access)
+
+Sarah needs monitored access to production servers:
+
+```bash
+# Authenticate with Fudo
+FUDO_TOKEN=$(curl -s -X POST http://localhost:8443/api/v2/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"admin","password":"admin123"}' \
+  | jq -r '.session_token')
+
+# Create Fudo user
+curl -s -X POST http://localhost:8443/api/v2/users \
+  -H "Authorization: Bearer $FUDO_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sarah Connor",
+    "login": "s.connor",
+    "email": "s.connor@corp.local",
+    "role": "user"
+  }' | jq .
+
+# → Returns user with id, login, status: "active"
+```
+
+### Step 5: Store Credentials in CyberArk (Vault)
+
+Her privileged credentials need to be vaulted:
+
+```bash
+# Authenticate with CyberArk
+CA_TOKEN=$(curl -s -X POST http://localhost:8450/api/auth/Cyberark/Logon \
+  -H "Content-Type: application/json" \
+  -d '{"username":"Administrator","password":"Cyberark1!"}' | tr -d '"')
+
+# Create a vaulted account
+curl -s -X POST http://localhost:8450/api/Accounts \
+  -H "Authorization: $CA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "safeName": "IT-Admins",
+    "platformId": "WinDomain",
+    "name": "s.connor-workstation",
+    "address": "workstation42.corp.local",
+    "userName": "s.connor",
+    "secretType": "password",
+    "secret": "Initial-P@ssw0rd-2026!"
+  }' | jq .
+
+# → Returns account with id, safeName, platformId
+```
+
+### Step 6: Document Everything (ServiceNow + JSM)
+
+Create change records for compliance:
+
+```bash
+# ServiceNow: Change Request
+SNOW_TOKEN=$(curl -s -X POST http://localhost:8447/api/now/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' | jq -r '.result.token')
+
+curl -s -X POST http://localhost:8447/api/now/table/change_request \
+  -H "Authorization: Bearer $SNOW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "short_description": "Onboarding: Sarah Connor — Engineering",
+    "description": "AD account created, Server-Admins group, Fudo PAM, CyberArk vault",
+    "category": "access",
+    "priority": "3"
+  }' | jq '.result | {sys_id, number, short_description, state}'
+
+# JSM: Tracking Issue
+JSM_TOKEN=$(curl -s -X POST http://localhost:8448/rest/auth/1/session \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | jq -r '.session.value')
+
+curl -s -X POST http://localhost:8448/rest/api/2/issue \
+  -H "Cookie: JSESSIONID=$JSM_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fields": {
+      "summary": "Onboarding: Sarah Connor — access provisioned",
+      "description": "All systems configured. AD + Fudo + CyberArk + SNOW change.",
+      "issuetype": {"name": "Task"},
+      "priority": {"name": "Medium"}
+    }
+  }' | jq '{key, id, self}'
+```
+
+### Step 7: Verify Everything Worked
+
+```bash
+# ✅ AD: User exists with correct group?
+curl -s http://localhost:8445/api/ad/users/s.connor \
+  -H "Authorization: Bearer $AD_TOKEN" | jq '{sAMAccountName, displayName, department, enabled, memberOf}'
+
+# ✅ Fudo: User active?
+curl -s http://localhost:8443/api/v2/users \
+  -H "Authorization: Bearer $FUDO_TOKEN" | jq '.[] | select(.login=="s.connor")'
+
+# ✅ CyberArk: Account vaulted?
+curl -s "http://localhost:8450/api/Accounts?search=s.connor" \
+  -H "Authorization: $CA_TOKEN" | jq '.value[] | {name, userName, safeName}'
+```
+
+### What Just Happened?
+
+You just built a **6-system onboarding workflow** entirely on your local machine:
+
+```
+HR Ticket (Matrix42) → AD Account + Group → Fudo PAM User → CyberArk Vault
+→ ServiceNow Change → JSM Tracking Issue → ✅ Verified across all systems
+```
+
+**This is exactly what you'd do in production** — the only difference is the URLs. When you're ready to deploy, change `localhost:8443` to your real Fudo server, and the same API calls work.
+
+### Next Steps
+
+| What you want | How |
+|--------------|-----|
+| **Build it as a script** | Copy the curl commands into a PowerShell or Bash script — see `examples/powershell/` for ready-made templates |
+| **Use the visual builder** | Open [PAMlab Studio](http://localhost:3000) → Workflow Builder → pick a template or start from scratch |
+| **Automate with YAML** | Write a pipeline definition — see `pipeline-engine/pipelines/` for examples, then run with `POST /pipelines/run` |
+| **Test error scenarios** | Try creating a user that already exists (→ 409), accessing without auth (→ 401), or disabling an account mid-workflow |
+| **Add more systems** | Check the [Roadmap](#-roadmap) for planned mocks (HashiCorp Vault, Azure AD, M365) |
 
 ---
 
