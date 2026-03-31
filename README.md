@@ -7,7 +7,7 @@
 **Build, test, and debug PAM integrations without touching production.**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/PAMlab/pamlab/actions/workflows/ci.yml/badge.svg)](https://github.com/PAMlab/pamlab/actions/workflows/ci.yml)
+[![CI](https://github.com/BenediktSchackenberg/PAMlab/actions/workflows/ci.yml/badge.svg)](https://github.com/BenediktSchackenberg/PAMlab/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Signed Commits Required](https://img.shields.io/badge/commits-signed_only-important)](CONTRIBUTING.md#commit-requirements)
 
@@ -1048,6 +1048,88 @@ Security Alert    Fudo PAM        Active Directory    Matrix42 / SNOW / JSM
 
 ---
 
+## 🧪 Testing
+
+PAMlab includes a comprehensive test suite with **145 automated tests** across all 8 services. Tests use [Jest](https://jestjs.io/) + [Supertest](https://github.com/ladjs/supertest) and run without starting any servers — everything is tested in-process.
+
+### Run All Tests
+
+```bash
+# Run tests for a single service
+cd fudo-mock-api && npm test
+
+# Run tests for ALL services (from repo root)
+for dir in fudo-mock-api matrix42-mock-api ad-mock-api servicenow-mock-api jsm-mock-api remedy-mock-api pipeline-engine cyberark-mock-api; do
+  echo "=== Testing $dir ===" && cd $dir && npm test && cd ..
+done
+```
+
+### Test Coverage by Service
+
+| Service | Tests | What's Covered |
+|---------|------:|----------------|
+| 🔐 Fudo PAM | 24 | Auth (login/401/422), Users CRUD, Servers, Safes, Accounts, Sessions, Groups, Listeners, Pools, Events, Access Policies, Password Policies, Session Control |
+| 📋 Matrix42 ESM | 20 | Token auth, Data API queries, Users CRUD, Assets, Tickets + stats, Software, Webhooks, Reports, Provisioning, Access Requests |
+| 🏢 Active Directory | 15 | LDAP bind auth, Users CRUD + 404, Groups + Members, OUs tree, Computers, Domain info, User group membership |
+| ❄️ ServiceNow | 16 | Token auth, Table API CRUD (incident), Changes, CMDB topology, Service Catalog, Events, Incident stats |
+| 🎫 Jira Service Mgmt | 16 | Session auth, Issues CRUD + 404, JQL search (GET + POST), Customers, Organizations, Assets, Webhooks, Transitions |
+| 🏥 BMC Remedy | 17 | JWT login, Incidents + stats, Changes, Assets, People + groups, Work Orders, SLA, Webhooks, Entry API |
+| 🔗 Pipeline Engine | 16 | Health, Pipelines list/get/validate/run, Connectors + actions, Run history, Error handling |
+| 🔒 CyberArk PAM | 21 | Auth (Logon/Logoff/403), Safes CRUD + Members, Accounts CRUD + search, Password Retrieve/Change, Users + ResetPassword, PSM Sessions + Terminate, System Health |
+
+**Total: 145 tests**
+
+### What the Tests Validate
+
+Each service test suite covers four areas:
+
+1. **Authentication** — Login flows, token generation, rejection of invalid credentials, protection of routes without auth
+2. **CRUD Operations** — Create, Read, Update, Delete for all primary resources with correct status codes
+3. **Seed Data** — Verification that initial data is present and correctly structured after startup
+4. **Error Handling** — 400 (bad input), 401 (no auth), 404 (not found), and domain-specific errors
+
+### Integration Test Scenarios
+
+Beyond unit tests, PAMlab has been validated with end-to-end integration scenarios that exercise cross-service workflows — the same workflows you'd build in production:
+
+**Scenario 1: Employee Onboarding** (8 steps across 6 systems)
+```
+Matrix42 (ticket) → AD (create user) → AD (add to group) → Fudo (create user)
+→ CyberArk (create account) → ServiceNow (change request) → JSM (tracking issue)
+→ Verify user exists in AD
+```
+
+**Scenario 2: Emergency Access Revocation** (6 steps across 5 systems)
+```
+Fudo (find active session) → AD (disable user) → CyberArk (rotate password)
+→ ServiceNow (security incident) → JSM (audit issue) → Remedy (incident)
+```
+
+**Scenario 3: CyberArk Password Rotation** (4 steps)
+```
+Search accounts → Retrieve password (checkout) → CheckIn → Verify
+```
+
+**Scenario 4: Cross-ITSM Incident Flow** (4 steps across 3 systems)
+```
+ServiceNow (create incident) → JSM (create issue) → Remedy (create incident)
+→ ServiceNow (close incident)
+```
+
+All integration scenarios pass successfully with correct data propagation across services.
+
+### CI/CD
+
+Tests run automatically via GitHub Actions on every push and pull request:
+
+- **Matrix:** Node.js 18 + 20
+- **Pipeline:** Install → Lint → Test → Docker Build
+- **Docker Publish:** Multi-arch images (amd64 + arm64) pushed to `ghcr.io` on tagged releases
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full pipeline configuration.
+
+---
+
 ## 🗺️ Roadmap
 
 | Epic | Component | Status |
@@ -1060,13 +1142,13 @@ Security Alert    Fudo PAM        Active Directory    Matrix42 / SNOW / JSM
 | [#4](https://github.com/BenediktSchackenberg/PAMlab/issues/4) | 🏥 **BMC Remedy / Helix Mock** (30+ endpoints) | ✅ Done |
 | — | 🔗 **Pipeline Engine** (YAML workflows) | ✅ Done |
 | — | 🖥️ **PAMlab Studio** (Web IDE) | ✅ Done |
-| [#6](https://github.com/BenediktSchackenberg/PAMlab/issues/6) | 🔒 **CyberArk PAM Mock** — PVWA REST API, Safes, Accounts, PSM | 📋 Planned |
+| [#6](https://github.com/BenediktSchackenberg/PAMlab/issues/6) | 🔒 **CyberArk PAM Mock** — PVWA REST API, Safes, Accounts, PSM (46 endpoints) | ✅ Done |
 | [#7](https://github.com/BenediktSchackenberg/PAMlab/issues/7) | 🔑 **HashiCorp Vault Mock** — Secrets, Dynamic Creds, PKI | 📋 Planned |
 | [#8](https://github.com/BenediktSchackenberg/PAMlab/issues/8) | ☁️ **Azure AD / Entra ID Mock** — Graph API, PIM, Conditional Access | 📋 Planned |
 | [#14](https://github.com/BenediktSchackenberg/PAMlab/issues/14) | 📧 **Microsoft 365 / Graph Mock** — Mail, Teams, Planner | 📋 Planned |
-| [#9](https://github.com/BenediktSchackenberg/PAMlab/issues/9) | 🧪 **E2E Test Suite** — Automated tests for all APIs | 📋 Planned |
+| [#9](https://github.com/BenediktSchackenberg/PAMlab/issues/9) | 🧪 **E2E Test Suite** — 145 automated tests across all APIs | ✅ Done |
 | [#10](https://github.com/BenediktSchackenberg/PAMlab/issues/10) | 🔗 **Pipeline Engine v2** — All connectors, conditional logic, loops | 📋 Planned |
-| [#11](https://github.com/BenediktSchackenberg/PAMlab/issues/11) | 🔄 **CI/CD + Docker Hub** — GitHub Actions, pre-built images | 📋 Planned |
+| [#11](https://github.com/BenediktSchackenberg/PAMlab/issues/11) | 🔄 **CI/CD + Docker Hub** — GitHub Actions, pre-built images | ✅ Done |
 | [#12](https://github.com/BenediktSchackenberg/PAMlab/issues/12) | 🖥️ **PAMlab Studio v2** — Multi-user collaboration, Python export, CMDB diff viewer | 📋 Planned |
 | [#13](https://github.com/BenediktSchackenberg/PAMlab/issues/13) | 🌐 **GitHub Pages Docs** — Full documentation site | 📋 Planned |
 
