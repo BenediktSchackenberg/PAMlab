@@ -11,12 +11,12 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Signed Commits Required](https://img.shields.io/badge/commits-signed_only-important)](CONTRIBUTING.md#commit-requirements)
 
+[TL;DR](#-tldr) •
 [Getting Started](#-getting-started) •
+[Quick Start](#-minimal-quickstart-2-minutes) •
+[Architecture](#-architecture-overview) •
 [Your First Workflow](#-your-first-workflow--step-by-step) •
-[Architecture](#-architecture) •
 [Mock APIs](#-mock-apis) •
-[PowerShell Scripts](#-powershell-automation) •
-[PAMlab Studio](#-pamlab-studio) •
 [Testing](#-testing) •
 [Contributing](#-contributing)
 
@@ -34,43 +34,7 @@ docker-compose up              # Start everything
 curl http://localhost:8443/health  # Verify it works
 ```
 
-Then build and test access management workflows — onboarding, offboarding, password rotation, emergency revoke — without touching production.
-
----
-
-## 🎯 What is PAMlab?
-
-PAMlab is a **developer sandbox** for building and testing enterprise access management integrations. It simulates a local IT environment with **six interconnected mock APIs**, a pipeline engine, and a web-based IDE:
-
-| System | What it simulates | Port | Endpoints |
-|--------|-------------------|------|-----------|
-| 🔐 **Fudo PAM** | Privileged Access Management — session recording, password rotation, JIT access | `8443` | 70+ |
-| 📋 **Matrix42 ESM** | Enterprise Service Management — asset management, ticketing, approval workflows | `8444` | 88 |
-| 🏢 **Active Directory** | Directory services — users, groups, OUs, computer objects | `8445` | 25+ |
-| ❄️ **ServiceNow ITSM** | ITSM — incidents, changes, CMDB, service catalog, events | `8447` | 30+ |
-| 🎫 **Jira Service Mgmt** | ITSM — issues, JQL search, workflow transitions, approvals, assets, SLA tracking | `8448` | 30+ |
-| 🏥 **BMC Remedy/Helix** | ITSM — incidents, changes, CMDB, work orders, SLA, Remedy REST API | `8449` | 30+ |
-| 🔒 **CyberArk PAS** *(optional)* | Privileged credential vault — safes, accounts, credential rotation | `8450` | 20+ |
-| 🔗 **Pipeline Engine** | Modular action chain builder — orchestrates workflows across all systems | `8446` | — |
-| 🖥️ **PAMlab Studio** | Web-based IDE for building and testing integration scripts | `3000` | — |
-
-### The Problem
-
-You're an IT engineer who needs to automate access provisioning:
-
-> *"When a new employee is onboarded in Matrix42, they should automatically get the right server access in Fudo PAM based on their AD group membership — and ServiceNow needs a change request, while JSM tracks approvals."*
-
-But you can't test against production. Setting up dev instances of all these systems is expensive, complex, and time-consuming.
-
-### The Solution
-
-```bash
-docker-compose up
-# → 6 mock APIs + pipeline engine + web IDE running in seconds
-# → Build your integration scripts
-# → Test the complete workflow end-to-end
-# → Export scripts and deploy to production (just change the URLs)
-```
+Then build and test access management workflows — onboarding, offboarding, password rotation, emergency revoke — locally before deploying to production.
 
 ---
 
@@ -217,6 +181,42 @@ curl -s -X POST http://localhost:8445/api/ad/groups/GRP-RDP-Admins/members \
 ```
 
 That's it — the core onboarding path works. The [full workflow](#-your-first-workflow--step-by-step) below adds Fudo PAM, CyberArk, ServiceNow, and JSM on top.
+
+---
+
+## 📋 Architecture Overview
+
+PAMlab is a **developer sandbox** for building and testing enterprise access management integrations. It simulates a local IT environment with **six interconnected mock APIs**, a pipeline engine, and a web-based IDE:
+
+| System | What it simulates | Port | Endpoints |
+|--------|-------------------|------|-----------|
+| 🔐 **Fudo PAM** | Privileged Access Management — session recording, password rotation, JIT access | `8443` | 70+ |
+| 📋 **Matrix42 ESM** | Enterprise Service Management — asset management, ticketing, approval workflows | `8444` | 88 |
+| 🏢 **Active Directory** | Directory services — users, groups, OUs, computer objects | `8445` | 25+ |
+| ❄️ **ServiceNow ITSM** | ITSM — incidents, changes, CMDB, service catalog, events | `8447` | 30+ |
+| 🎫 **Jira Service Mgmt** | ITSM — issues, JQL search, workflow transitions, approvals, assets, SLA tracking | `8448` | 30+ |
+| 🏥 **BMC Remedy/Helix** | ITSM — incidents, changes, CMDB, work orders, SLA, Remedy REST API | `8449` | 30+ |
+| 🔒 **CyberArk PAS** *(optional)* | Privileged credential vault — safes, accounts, credential rotation | `8450` | 20+ |
+| 🔗 **Pipeline Engine** | Modular action chain builder — orchestrates workflows across all systems | `8446` | — |
+| 🖥️ **PAMlab Studio** | Web-based IDE for building and testing integration scripts | `3000` | — |
+
+### The Problem
+
+You're an IT engineer who needs to automate access provisioning:
+
+> *"When a new employee is onboarded in Matrix42, they should automatically get the right server access in Fudo PAM based on their AD group membership — and ServiceNow needs a change request, while JSM tracks approvals."*
+
+But you can't test against production. Setting up dev instances of all these systems is expensive, complex, and time-consuming.
+
+### The Solution
+
+```bash
+docker-compose up
+# → 6 mock APIs + pipeline engine + web IDE running in seconds
+# → Build your integration scripts
+# → Test the complete workflow end-to-end
+# → Adapt scripts for production (swap base URLs and credentials)
+```
 
 ---
 
