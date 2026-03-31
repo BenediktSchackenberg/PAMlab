@@ -18,10 +18,18 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, login, server_id, type } = req.body || {};
-  if (!name || !login || !server_id) return res.status(422).json({ error: 'Validation Error', message: 'name, login, and server_id are required' });
+  const { name, login, server_id: rawServerId, type } = req.body || {};
+  if (!name || !login) return res.status(422).json({ error: 'Validation Error', message: 'name and login are required' });
+  let server_id = rawServerId;
+  if (!server_id) {
+    if (db.servers.length > 0) {
+      server_id = db.servers[0].id;
+    } else {
+      return res.status(422).json({ error: 'Validation Error', message: 'No servers available to auto-assign' });
+    }
+  }
   const server = db.servers.find(s => s.id === server_id);
-  if (!server) return res.status(422).json({ error: 'Validation Error', message: 'Server not found' });
+  if (!server) return res.status(422).json({ error: 'Validation Error', message: `Server not found. Valid server IDs: ${db.servers.map(s => s.id).join(', ')}` });
   const now = new Date().toISOString();
   const account = { id: uuidv4(), name, login, server_id, server_name: server.name, type: type || 'regular', status: 'active', password_change_required: false, created_at: now, modified_at: now };
   db.accounts.push(account);

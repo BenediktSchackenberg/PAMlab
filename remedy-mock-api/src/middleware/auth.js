@@ -25,7 +25,12 @@ function authMiddleware(req, res, next) {
   // Basic auth
   if (authHeader.startsWith('Basic ')) {
     const decoded = Buffer.from(authHeader.slice(6), 'base64').toString();
-    const [username] = decoded.split(':');
+    const [username, ...rest] = decoded.split(':');
+    const password = rest.join(':');
+    const validPasswords = ['admin', 'admin123', 'Password1!', username];
+    if (!validPasswords.includes(password)) {
+      return res.status(401).json({ error: [{ messageType: 'ERROR', messageText: 'Invalid credentials', messageNumber: 401 }] });
+    }
     const person = store.forms['CTM:People'].find(p => p['Login ID'] === username);
     if (person) {
       req.remedyUser = person;

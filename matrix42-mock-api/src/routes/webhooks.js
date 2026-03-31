@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(auth);
 
 // Register webhook
-router.post('/register', (req, res) => {
+router.post('/', (req, res) => {
   const { url, events, secret } = req.body;
   const wh = { id: uuidv4(), url, events: events || [], secret: secret || null, created_at: new Date().toISOString() };
   store.webhooks.push(wh);

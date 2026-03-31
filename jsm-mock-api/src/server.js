@@ -36,6 +36,7 @@ app.use('/rest/api/2/issue', require('./routes/issues'));
 app.use('/rest/api/2/issue', require('./routes/transitions'));
 app.use('/rest/api/2/search', require('./routes/search'));
 app.use('/rest/api/2/webhook', require('./routes/webhooks'));
+app.use('/rest/webhooks/1.0/webhook', require('./routes/webhooks'));
 
 // JSM Service Desk API
 app.use('/rest/servicedeskapi', require('./routes/approvals'));
