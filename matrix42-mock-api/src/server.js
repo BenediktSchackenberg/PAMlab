@@ -13,18 +13,18 @@ const provisioningRoutes = require('./routes/provisioning');
 const reportRoutes = require('./routes/reports');
 
 const app = express();
-const PORT = process.env.PORT || 8444;
 
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// Request logging
+// --- Request Logging ---
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 
-// Routes
+// --- Routes ---
 app.use('/m42Services/api/ApiToken', authRoutes);
 app.use('/m42Services/api/data', dataRoutes);
 app.use('/m42Services/api/meta', metaRoutes);
@@ -37,10 +37,10 @@ app.use('/m42Services/api/software', softwareRoutes);
 app.use('/m42Services/api/provisioning', provisioningRoutes);
 app.use('/m42Services/api/reports', reportRoutes);
 
-// Alias routes (without /m42Services/ prefix) for convenience
+// --- Alias Routes ---
 app.use('/api/tickets', ticketRoutes);
 
-// Health
+// --- Health & Admin ---
 app.post('/reset', (req, res) => {
   delete require.cache[require.resolve('./data/seed')];
   const freshSeed = require('./data/seed');
@@ -65,17 +65,19 @@ app.post('/reset', (req, res) => {
   res.json({ status: 'reset', service: 'matrix42-mock-api' });
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'matrix42-mock-api' }));
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'matrix42-mock-api' });
+});
 
-// 404
+// --- 404 ---
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
 });
 
-if (require.main === module) app.listen(PORT, () => {
-  console.log(`Matrix42 ESM Mock API running on port ${PORT}`);
-});
-
-module.exports = app;
+// --- Start ---
+const PORT = process.env.PORT || 8444;
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Matrix42 ESM Mock API running on port ${PORT}`));
+}
 
 module.exports = app;

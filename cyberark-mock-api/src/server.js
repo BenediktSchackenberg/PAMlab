@@ -3,14 +3,13 @@ const cors = require('cors');
 const authMiddleware = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 8450;
 
-// Middleware
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 app.set('json spaces', 2);
 
-// Request logging
+// --- Request Logging ---
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -19,10 +18,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Public routes
+// --- Public Routes ---
 app.use('/api/auth', require('./routes/auth'));
 
-// Protected routes
+// --- Protected Routes ---
 app.use('/api/Safes', authMiddleware, require('./routes/safes'));
 app.use('/api/Accounts', authMiddleware, require('./routes/accounts'));
 app.use('/api/Platforms', authMiddleware, require('./routes/platforms'));
@@ -31,7 +30,7 @@ app.use('/api/UserGroups', authMiddleware, require('./routes/groups'));
 app.use('/api/LiveSessions', authMiddleware, require('./routes/sessions'));
 app.use('/api/ComponentsMonitoringDetails', authMiddleware, require('./routes/system-health'));
 
-// Reset endpoint (for tests)
+// --- Health & Admin ---
 app.post('/reset', (req, res) => {
   delete require.cache[require.resolve('./data/seed')];
   const freshSeed = require('./data/seed');
@@ -48,19 +47,31 @@ app.post('/reset', (req, res) => {
   res.json({ status: 'reset', service: 'cyberark-mock-api' });
 });
 
-// Health check
-app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '12.6.0-mock' }));
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'cyberark-mock-api', version: '12.6.0-mock' }));
-
-// Server info
-app.get('/api/Server', authMiddleware, (req, res) => {
-  res.json({ ServerName: 'CyberArk-Mock-PVWA', ServerId: 'mock-001', ServerVersion: '12.6.0-mock', AuthenticationMethods: [{ id: 'CyberArk', enabled: true }] });
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', version: '12.6.0-mock' });
 });
 
-// 404
-app.use((req, res) => res.status(404).json({ ErrorCode: 'PASWS019E', ErrorMessage: `Route ${req.method} ${req.path} not found` }));
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'cyberark-mock-api', version: '12.6.0-mock' });
+});
 
-// Export for testing
+// --- Server Info ---
+app.get('/api/Server', authMiddleware, (req, res) => {
+  res.json({
+    ServerName: 'CyberArk-Mock-PVWA',
+    ServerId: 'mock-001',
+    ServerVersion: '12.6.0-mock',
+    AuthenticationMethods: [{ id: 'CyberArk', enabled: true }]
+  });
+});
+
+// --- 404 ---
+app.use((req, res) => {
+  res.status(404).json({ ErrorCode: 'PASWS019E', ErrorMessage: `Route ${req.method} ${req.path} not found` });
+});
+
+// --- Start ---
+const PORT = process.env.PORT || 8450;
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🔐 CyberArk PVWA Mock API v12.6 running on http://localhost:${PORT}`);

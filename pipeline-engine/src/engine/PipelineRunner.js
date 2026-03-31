@@ -10,6 +10,12 @@ const StepExecutor = require('./StepExecutor');
 const RollbackHandler = require('./RollbackHandler');
 const VariableResolver = require('./VariableResolver');
 
+const log = {
+  info: (msg, meta = {}) => console.log(JSON.stringify({ level: 'info', ts: new Date().toISOString(), msg, ...meta })),
+  warn: (msg, meta = {}) => console.warn(JSON.stringify({ level: 'warn', ts: new Date().toISOString(), msg, ...meta })),
+  error: (msg, meta = {}) => console.error(JSON.stringify({ level: 'error', ts: new Date().toISOString(), msg, ...meta })),
+};
+
 class PipelineRunner {
   /**
    * @param {ConnectorRegistry} registry - Connector-Registry
@@ -26,8 +32,8 @@ class PipelineRunner {
    * @param {string} filePath - Pfad zur YAML-Datei
    * @returns {object} Pipeline-Definition
    */
-  loadPipeline(filePath) {
-    const content = fs.readFileSync(filePath, 'utf8');
+  async loadPipeline(filePath) {
+    const content = await fs.promises.readFile(filePath, 'utf8');
     const pipeline = yaml.load(content);
     this._validatePipeline(pipeline, filePath);
     return pipeline;
@@ -38,6 +44,10 @@ class PipelineRunner {
    */
   _validatePipeline(pipeline, source = 'unknown') {
     const errors = [];
+
+    if (!pipeline || typeof pipeline !== 'object') {
+      throw new Error(`Pipeline-Validierung fehlgeschlagen (${source}):\n  - Ungültiges Pipeline-Format`);
+    }
 
     if (!pipeline.name) errors.push('Pipeline benötigt ein "name" Feld');
     if (!pipeline.steps || !Array.isArray(pipeline.steps)) {
@@ -68,9 +78,9 @@ class PipelineRunner {
   /**
    * Validiert eine Pipeline und gibt Ergebnis zurück (ohne Exception)
    */
-  validate(filePath) {
+  async validate(filePath) {
     try {
-      const content = fs.readFileSync(filePath, 'utf8');
+      const content = await fs.promises.readFile(filePath, 'utf8');
       const pipeline = yaml.load(content);
       this._validatePipeline(pipeline, filePath);
       return { valid: true, name: pipeline.name, steps: pipeline.steps.length, errors: [] };
@@ -88,14 +98,10 @@ class PipelineRunner {
    */
   async run(filePath, vars = {}, options = {}) {
     const runId = uuidv4();
-    const pipeline = this.loadPipeline(filePath);
+    const pipeline = await this.loadPipeline(filePath);
     const dryRun = options.dryRun || false;
 
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`🚀 Pipeline: ${pipeline.name}`);
-    console.log(`   Run-ID:   ${runId}`);
-    console.log(`   Modus:    ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
-    console.log(`${'='.repeat(60)}\n`);
+    log.info('Pipeline started', { pipeline: pipeline.name, runId, mode: dryRun ? 'dry-run' : 'live' });
 
     // Laufzeit-Kontext aufbauen
     const context = {
@@ -125,7 +131,7 @@ class PipelineRunner {
       const step = pipeline.steps[i];
       const stepName = step.name || `step-${i + 1}`;
 
-      console.log(`\n📋 Step ${i + 1}/${pipeline.steps.length}: ${stepName}`);
+      log.info(`Executing step ${i + 1}/${pipeline.steps.length}`, { step: stepName, runId });
 
       const result = await this.stepExecutor.execute(step, context, dryRun);
       run.steps.push({ name: stepName, ...result });
@@ -134,7 +140,7 @@ class PipelineRunner {
       context.steps[stepName] = result;
 
       if (result.status === 'failed') {
-        console.log(`\n❌ Step "${stepName}" fehlgeschlagen: ${result.error}`);
+        log.error(`Step failed: ${stepName}`, { error: result.error, runId });
         run.status = 'failed';
         run.failedAt = stepName;
 
@@ -150,16 +156,14 @@ class PipelineRunner {
         return run;
       }
 
-      console.log(`  ✅ Erfolgreich (${result.durationMs}ms)`);
+      log.info(`Step completed`, { step: stepName, durationMs: result.durationMs, runId });
     }
 
     run.status = 'completed';
     run.completedAt = new Date().toISOString();
 
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`✅ Pipeline "${pipeline.name}" erfolgreich abgeschlossen`);
-    console.log(`   Dauer: ${new Date(run.completedAt) - new Date(run.startedAt)}ms`);
-    console.log(`${'='.repeat(60)}\n`);
+    const durationMs = new Date(run.completedAt) - new Date(run.startedAt);
+    log.info('Pipeline completed', { pipeline: pipeline.name, runId, durationMs });
 
     return run;
   }
@@ -167,27 +171,35 @@ class PipelineRunner {
   /**
    * Gibt alle verfügbaren Pipeline-Dateien zurück
    */
-  listPipelines(pipelinesDir) {
+  async listPipelines(pipelinesDir) {
     const dir = pipelinesDir || path.join(__dirname, '../../pipelines');
-    if (!fs.existsSync(dir)) return [];
 
-    return fs.readdirSync(dir)
-      .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
-      .map(f => {
-        try {
-          const content = fs.readFileSync(path.join(dir, f), 'utf8');
-          const pipeline = yaml.load(content);
-          return {
-            file: f,
-            name: pipeline.name || f,
-            description: pipeline.description || '',
-            steps: (pipeline.steps || []).length,
-            hasRollback: !!(pipeline.rollback && pipeline.rollback.length > 0)
-          };
-        } catch {
-          return { file: f, name: f, error: 'Parsing fehlgeschlagen' };
-        }
-      });
+    try {
+      await fs.promises.access(dir);
+    } catch {
+      return [];
+    }
+
+    const files = await fs.promises.readdir(dir);
+    const results = [];
+
+    for (const f of files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))) {
+      try {
+        const content = await fs.promises.readFile(path.join(dir, f), 'utf8');
+        const pipeline = yaml.load(content);
+        results.push({
+          file: f,
+          name: pipeline.name || f,
+          description: pipeline.description || '',
+          steps: (pipeline.steps || []).length,
+          hasRollback: !!(pipeline.rollback && pipeline.rollback.length > 0)
+        });
+      } catch {
+        results.push({ file: f, name: f, error: 'Parsing fehlgeschlagen' });
+      }
+    }
+
+    return results;
   }
 
   /**

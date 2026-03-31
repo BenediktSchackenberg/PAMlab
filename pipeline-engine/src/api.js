@@ -18,10 +18,11 @@ const app = express();
 const PORT = process.env.PORT || 8446;
 const PIPELINES_DIR = path.join(__dirname, '../pipelines');
 
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// --- Registry aufbauen ---
+// --- Registry ---
 const registry = new ConnectorRegistry();
 registry.register('fudo-pam', new FudoPamConnector(process.env.FUDO_URL || 'http://localhost:8443'));
 registry.register('matrix42-esm', new Matrix42EsmConnector(process.env.M42_URL || 'http://localhost:8444'));
@@ -35,9 +36,9 @@ app.get('/health', (req, res) => {
 });
 
 // --- GET /pipelines — Verfügbare Pipelines auflisten ---
-app.get('/pipelines', (req, res) => {
+app.get('/pipelines', async (req, res) => {
   try {
-    const pipelines = runner.listPipelines(PIPELINES_DIR);
+    const pipelines = await runner.listPipelines(PIPELINES_DIR);
     res.json({ pipelines });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -61,13 +62,15 @@ app.get('/pipelines/runs/:id', (req, res) => {
 });
 
 // --- GET /pipelines/:name — Pipeline-Definition abrufen ---
-app.get('/pipelines/:name', (req, res) => {
+app.get('/pipelines/:name', async (req, res) => {
   try {
     const filePath = path.join(PIPELINES_DIR, req.params.name);
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch {
       return res.status(404).json({ error: `Pipeline "${req.params.name}" nicht gefunden` });
     }
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = await fs.promises.readFile(filePath, 'utf8');
     const pipeline = yaml.load(content);
     res.json({ pipeline, raw: content });
   } catch (error) {
@@ -76,12 +79,11 @@ app.get('/pipelines/:name', (req, res) => {
 });
 
 // --- POST /pipelines/validate — Pipeline validieren ---
-app.post('/pipelines/validate', (req, res) => {
+app.post('/pipelines/validate', async (req, res) => {
   try {
     const { file, yaml: yamlContent } = req.body;
 
     if (yamlContent) {
-      // YAML-String direkt validieren
       const pipeline = yaml.load(yamlContent);
       if (!pipeline.name) return res.status(400).json({ valid: false, errors: ['Pipeline benötigt ein "name" Feld'] });
       if (!pipeline.steps) return res.status(400).json({ valid: false, errors: ['Pipeline benötigt ein "steps" Array'] });
@@ -90,7 +92,7 @@ app.post('/pipelines/validate', (req, res) => {
 
     if (file) {
       const filePath = path.join(PIPELINES_DIR, file);
-      const result = runner.validate(filePath);
+      const result = await runner.validate(filePath);
       return res.json(result);
     }
 
@@ -110,7 +112,9 @@ app.post('/pipelines/run', async (req, res) => {
     }
 
     const filePath = path.join(PIPELINES_DIR, file);
-    if (!fs.existsSync(filePath)) {
+    try {
+      await fs.promises.access(filePath);
+    } catch {
       return res.status(404).json({ error: `Pipeline "${file}" nicht gefunden` });
     }
 
@@ -146,12 +150,14 @@ app.get('/connectors/:name/actions', (req, res) => {
   }
 });
 
-// --- Server starten ---
-if (require.main === module) app.listen(PORT, () => {
-  console.log(`\n🔗 PAMlab Pipeline Engine läuft auf Port ${PORT}`);
-  console.log(`   Connectors: ${registry.list().join(', ')}`);
-  console.log(`   Pipelines:  ${PIPELINES_DIR}`);
-  console.log(`   Health:     http://localhost:${PORT}/health\n`);
-});
+// --- Start ---
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🔗 PAMlab Pipeline Engine läuft auf Port ${PORT}`);
+    console.log(`   Connectors: ${registry.list().join(', ')}`);
+    console.log(`   Pipelines:  ${PIPELINES_DIR}`);
+    console.log(`   Health:     http://localhost:${PORT}/health\n`);
+  });
+}
 
 module.exports = app;

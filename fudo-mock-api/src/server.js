@@ -3,14 +3,13 @@ const cors = require('cors');
 const authMiddleware = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Middleware
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 app.set('json spaces', 2);
 
-// Request logging
+// --- Request Logging ---
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -19,10 +18,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Public routes
+// --- Public Routes ---
 app.use('/api/v2/auth', require('./routes/auth'));
 
-// Protected routes
+// --- Protected Routes ---
 app.use('/api/v2/users', authMiddleware, require('./routes/users'));
 app.use('/api/v2/accounts', authMiddleware, require('./routes/accounts'));
 app.use('/api/v2/safes', authMiddleware, require('./routes/safes'));
@@ -38,7 +37,7 @@ app.use('/api/v2/password-policies', authMiddleware, require('./routes/password-
 app.use('/api/v2/access-requests', authMiddleware, require('./routes/access-requests'));
 app.use('/api/v2/access-policies', authMiddleware, require('./routes/access-policies'));
 
-// Health check
+// --- Health & Admin ---
 app.post('/reset', (req, res) => {
   delete require.cache[require.resolve('./data/seed')];
   const freshSeed = require('./data/seed');
@@ -55,17 +54,26 @@ app.post('/reset', (req, res) => {
   res.json({ status: 'reset', service: 'fudo-mock-api' });
 });
 
-app.get('/api/v2/health', (req, res) => res.json({ status: 'ok', version: '2.0.0-mock' }));
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'fudo-mock-api', version: '2.0.0-mock' }));
-
-// 404
-app.use((req, res) => res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` }));
-
-if (require.main === module) app.listen(PORT, () => {
-  console.log(`🔐 Fudo PAM Mock API v2 running on http://localhost:${PORT}`);
-  console.log(`   Login: POST /api/v2/auth/login {"login":"admin","password":"admin123"}`);
+app.get('/api/v2/health', (req, res) => {
+  res.json({ status: 'ok', version: '2.0.0-mock' });
 });
 
-module.exports = app;
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'fudo-mock-api', version: '2.0.0-mock' });
+});
+
+// --- 404 ---
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found', message: `Route ${req.method} ${req.path} not found` });
+});
+
+// --- Start ---
+const PORT = process.env.PORT || 3000;
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🔐 Fudo PAM Mock API v2 running on http://localhost:${PORT}`);
+    console.log(`   Login: POST /api/v2/auth/login {"login":"admin","password":"admin123"}`);
+  });
+}
 
 module.exports = app;
