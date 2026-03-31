@@ -24,9 +24,23 @@
 
 ---
 
+## ⚡ TL;DR
+
+**PAMlab** = Mock APIs for 6 enterprise systems (AD, Fudo PAM, Matrix42, ServiceNow, JSM, Remedy) + a pipeline engine + a web IDE.
+
+```bash
+git clone https://github.com/BenediktSchackenberg/PAMlab.git && cd PAMlab
+docker-compose up              # Start everything
+curl http://localhost:8443/health  # Verify it works
+```
+
+Then build and test access management workflows — onboarding, offboarding, password rotation, emergency revoke — without touching production.
+
+---
+
 ## 🎯 What is PAMlab?
 
-PAMlab is a **complete developer sandbox** for building and testing enterprise access management integrations. It simulates a real-world IT environment with **six interconnected mock APIs**, a pipeline engine, and a web-based IDE:
+PAMlab is a **developer sandbox** for building and testing enterprise access management integrations. It simulates a local IT environment with **six interconnected mock APIs**, a pipeline engine, and a web-based IDE:
 
 | System | What it simulates | Port | Endpoints |
 |--------|-------------------|------|-----------|
@@ -36,6 +50,7 @@ PAMlab is a **complete developer sandbox** for building and testing enterprise a
 | ❄️ **ServiceNow ITSM** | ITSM — incidents, changes, CMDB, service catalog, events | `8447` | 30+ |
 | 🎫 **Jira Service Mgmt** | ITSM — issues, JQL search, workflow transitions, approvals, assets, SLA tracking | `8448` | 30+ |
 | 🏥 **BMC Remedy/Helix** | ITSM — incidents, changes, CMDB, work orders, SLA, Remedy REST API | `8449` | 30+ |
+| 🔒 **CyberArk PAS** *(optional)* | Privileged credential vault — safes, accounts, credential rotation | `8450` | 20+ |
 | 🔗 **Pipeline Engine** | Modular action chain builder — orchestrates workflows across all systems | `8446` | — |
 | 🖥️ **PAMlab Studio** | Web-based IDE for building and testing integration scripts | `3000` | — |
 
@@ -170,6 +185,41 @@ curl -s "http://localhost:8449/api/arsys/v1/entry/HPD%3AHelp%20Desk" \
 
 ---
 
+## 🏁 Minimal Quickstart (2 Minutes)
+
+Before diving into the full workflow, here's the smallest useful test — Matrix42 ticket → AD user → group:
+
+```bash
+# 1. Create a ticket
+curl -s -X POST http://localhost:8444/m42Services/api/tickets \
+  -H "Authorization: Bearer pamlab-dev-token" \
+  -H "Content-Type: application/json" \
+  -d '{"subject":"Onboarding: Test User","type":"access-request"}' | jq .id
+# → returns ticket ID
+
+# 2. Create an AD user
+TOKEN=$(curl -s -X POST http://localhost:8445/api/ad/auth/bind \
+  -H "Content-Type: application/json" \
+  -d '{"dn":"CN=admin","password":"admin"}' | jq -r .token)
+
+curl -s -X POST http://localhost:8445/api/ad/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sAMAccountName":"test.user","cn":"Test User"}' | jq .distinguishedName
+# → "CN=Test User,OU=Users,DC=corp,DC=local"
+
+# 3. Assign to a group
+curl -s -X POST http://localhost:8445/api/ad/groups/GRP-RDP-Admins/members \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"members":["test.user"]}' | jq .added
+# → ["test.user"]
+```
+
+That's it — the core onboarding path works. The [full workflow](#-your-first-workflow--step-by-step) below adds Fudo PAM, CyberArk, ServiceNow, and JSM on top.
+
+---
+
 ## 🎓 Your First Workflow — Step by Step
 
 You're an IT engineer. Your task: **When HR creates an onboarding ticket, automatically provision the new employee across all systems.** Here's how to build and test that with PAMlab.
@@ -274,7 +324,7 @@ curl -s -X POST http://localhost:8443/api/v2/users \
 # → Returns user with id, login, status: "active"
 ```
 
-### Step 5: Store Credentials in CyberArk (Vault)
+### Step 5: Store Credentials in CyberArk *(Optional — requires cyberark-mock-api)*
 
 Her privileged credentials need to be vaulted:
 
@@ -360,11 +410,11 @@ curl -s "http://localhost:8450/api/Accounts?search=s.connor" \
 You just built a **6-system onboarding workflow** entirely on your local machine:
 
 ```
-HR Ticket (Matrix42) → AD Account + Group → Fudo PAM User → CyberArk Vault
-→ ServiceNow Change → JSM Tracking Issue → ✅ Verified across all systems
+Basic flow:  Matrix42 Ticket → AD User + Group → ✅ Done
+Full flow:   Matrix42 → AD → Fudo PAM → CyberArk → ServiceNow → JSM → ✅ Verified
 ```
 
-**This is exactly what you'd do in production** — the only difference is the URLs. When you're ready to deploy, change `localhost:8443` to your real Fudo server, and the same API calls work.
+**The API calls are the same shape as production — only the URLs change.** When you're ready to deploy, change `localhost:8443` to your real Fudo server, and the same API calls work.
 
 ### Next Steps
 
