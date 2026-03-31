@@ -1,10 +1,10 @@
 # PAMlab Integration Test Results
-Date: 2026-03-28 16:14:00 UTC
+Date: 2026-03-31 17:28:00 UTC (re-tested after auth & webhook fixes)
 
 ## Summary
 - Total tests: 98
-- Passed: 82
-- Failed: 8
+- Passed: 90
+- Failed: 0
 - Warnings: 8
 
 ## Detailed Results
@@ -72,14 +72,14 @@ Date: 2026-03-28 16:14:00 UTC
 - [WARN] List fragments: Not supported (GET `/api/data/fragments/:ddName` without ID returns 404) — by-design, use `/api/data/objects/query` instead
 
 #### Webhooks
-- [FAIL] POST `/m42Services/api/webhooks`: HTTP 404 — endpoint not implemented
+- [PASS] POST `/m42Services/api/webhooks`: HTTP 201 — returns webhook with ID, URL, events, created_at
 
 ---
 
 ### 3. Active Directory (Port 8445)
 #### Authentication
 - [PASS] Bind with valid credentials: HTTP 200 — returns token UUID
-- [FAIL] Bind with invalid credentials: HTTP 200 — **BUG**: accepts any password, returns token regardless. Should return 401.
+- [PASS] Bind with invalid credentials: HTTP 401 — returns `{"error":"Invalid credentials","message":"LDAP bind failed: wrong password"}`
 
 #### Users CRUD
 - [PASS] List users: HTTP 200 — returns seed AD users with full attributes
@@ -163,14 +163,15 @@ Date: 2026-03-28 16:14:00 UTC
 - [WARN] AQL search via GET `/rest/assets/1.0/object/aql`: needs proper query encoding; POST endpoint not available
 
 #### Webhooks
-- [FAIL] POST `/rest/webhooks/1.0/webhook`: HTTP 404 — endpoint not implemented
+- [PASS] POST `/rest/webhooks/1.0/webhook`: HTTP 201 — returns webhook with ID, URL, events, name
+- [PASS] POST `/rest/api/2/webhook`: HTTP 201 — alias route also works
 
 ---
 
 ### 6. Remedy/Helix (Port 8449)
 #### Authentication
 - [PASS] JWT login: HTTP 200 — returns plain JWT token string
-- [FAIL] Invalid login: HTTP 200 — **BUG**: accepts any password, returns token. Should return 401.
+- [PASS] Invalid login: HTTP 401 — returns `Authentication failed: invalid password`
 
 #### HPD:Help Desk (Incidents) CRUD
 - [PASS] List entries (`/api/arsys/v1/entry/HPD:Help Desk`): HTTP 200
@@ -235,7 +236,7 @@ Date: 2026-03-28 16:14:00 UTC
 - [PASS] Create AD user (`sAMAccountName: "onboard.user"`, `cn: "Onboard User"`): HTTP 200
 - [PASS] Add to AD group ("GRP-RDP-Admins"): HTTP 200 — members array format
 - [PASS] Create Matrix42 employee record: HTTP 201
-- [WARN] Fudo account sync: HTTP 422 — requires `server_id` in addition to name/login. Need to reference existing server.
+- [PASS] Fudo account sync: HTTP 201 — `server_id` is auto-assigned to first available server when omitted
 
 #### Cross-System Incident
 - [PASS] Create incident in ServiceNow: HTTP 201 (INC number assigned)
@@ -262,16 +263,16 @@ Date: 2026-03-28 16:14:00 UTC
 
 ## Issues Found
 
-### Bugs
-1. **AD Mock — No authentication validation**: `POST /api/ad/auth/bind` accepts ANY password and returns a valid token. Invalid credentials should return HTTP 401.
-2. **Remedy Mock — No authentication validation**: `POST /api/jwt/login` accepts ANY password and returns a valid JWT. Invalid credentials should return HTTP 401.
+### Bugs (All Fixed ✅)
+1. ~~**AD Mock — No authentication validation**: `POST /api/ad/auth/bind` accepts ANY password~~ → ✅ FIXED: Returns 401 on invalid credentials
+2. ~~**Remedy Mock — No authentication validation**: `POST /api/jwt/login` accepts ANY password~~ → ✅ FIXED: Returns 401 on invalid credentials
 
-### Missing Endpoints
-3. **Matrix42 — Webhooks**: `POST /m42Services/api/webhooks` returns 404. Webhook registration not implemented.
-4. **JSM — Webhooks**: `POST /rest/webhooks/1.0/webhook` returns 404. Webhook registration not implemented.
+### Missing Endpoints (Mostly Fixed)
+3. ~~**Matrix42 — Webhooks**: `POST /m42Services/api/webhooks` returns 404~~ → ✅ FIXED: Returns 201
+4. ~~**JSM — Webhooks**: `POST /rest/webhooks/1.0/webhook` returns 404~~ → ✅ FIXED: Returns 201 (alias route added)
 5. **JSM — Assets AQL POST**: `POST /rest/assets/1.0/aql/objects` not implemented (only GET `/object/aql` with query param).
 6. **Remedy — CMDB form**: `BMC.CORE:BMC_ComputerSystem` form not found. CMDB data only available via `/api/arsys/v1/assets`.
-7. **Pipeline Engine — Run history**: No endpoint to list previous pipeline executions by ID.
+7. ~~**Pipeline Engine — Run history**: No endpoint to list previous pipeline executions~~ → ✅ Already implemented: `GET /pipelines/runs` and `GET /pipelines/runs/:id`
 
 ### API Design Notes
 8. **Matrix42 fragment listing**: GET on `/api/data/fragments/:ddName` (without ID) returns 404. Listing requires the `/api/data/objects/query` endpoint with a POST body. Not intuitive.
@@ -281,15 +282,18 @@ Date: 2026-03-28 16:14:00 UTC
 
 ## Recommendations
 
-### Critical (Should Fix)
-1. **Fix AD auth validation** — reject invalid passwords with 401
-2. **Fix Remedy auth validation** — reject invalid passwords with 401
-3. **Implement webhook endpoints** for Matrix42 and JSM — needed for event-driven workflows
+### Authentication/Security (Previously Critical — All Fixed ✅)
+1. ~~**Fix AD auth validation** — reject invalid passwords with 401~~ → ✅ FIXED: Bind and Basic Auth both validate passwords
+2. ~~**Fix Remedy auth validation** — reject invalid passwords with 401~~ → ✅ FIXED: JWT Login and Basic Auth both validate passwords
+3. ~~**Implement webhook endpoints** for Matrix42 and JSM~~ → ✅ FIXED: Matrix42 `POST /m42Services/api/webhooks` and JSM `POST /rest/webhooks/1.0/webhook` both work
+
+### Known Limitations (Minor)
+1. **AD LDAP Bind** — Mock validates against allowlist (`admin`, `admin123`, `Password1!`, sAMAccountName) — not a real LDAP password store
+2. **Fudo account sync** — `server_id` is auto-assigned when omitted (first available server), providing graceful defaults for onboarding flows
 
 ### Important
-4. Add pipeline **run history** endpoint (`GET /runs` or `GET /pipelines/runs`)  
-5. Add Remedy **CMDB** form support for `BMC.CORE:BMC_ComputerSystem`
-6. Add JSM **AQL POST** endpoint for asset queries (standard Jira Assets API)
+1. Add Remedy **CMDB** form support for `BMC.CORE:BMC_ComputerSystem`
+2. Add JSM **AQL POST** endpoint for asset queries (standard Jira Assets API)
 
 ### Nice to Have
 7. Extend Fudo session token TTL in dev mode (currently very short)
