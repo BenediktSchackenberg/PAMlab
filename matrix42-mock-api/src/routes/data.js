@@ -6,6 +6,25 @@ const router = express.Router();
 
 router.use(auth);
 
+// LIST fragments
+router.get('/fragments/:ddName', (req, res) => {
+  const { ddName } = req.params;
+  const list = store.objects[ddName];
+  if (!list) return res.status(404).json({ error: `Unknown DD: ${ddName}` });
+  res.json({ columns: Object.keys(list[0] || {}), items: list });
+});
+
+// DELETE fragment
+router.delete('/fragments/:ddName/:fragmentId', (req, res) => {
+  const { ddName, fragmentId } = req.params;
+  const list = store.objects[ddName];
+  if (!list) return res.status(404).json({ error: `Unknown DD: ${ddName}` });
+  const idx = list.findIndex(o => o.ID === fragmentId);
+  if (idx === -1) return res.status(404).json({ error: 'Fragment not found' });
+  list.splice(idx, 1);
+  res.status(204).send();
+});
+
 // GET fragment
 router.get('/fragments/:ddName/:fragmentId', (req, res) => {
   const { ddName, fragmentId } = req.params;

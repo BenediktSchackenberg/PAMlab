@@ -112,40 +112,57 @@ cd pamlab-studio && npm install && npm run dev
 ```bash
 # ✅ Health checks (all should return JSON with status "ok" or "healthy")
 curl -s http://localhost:8443/health | jq .
+# → {"status":"ok","service":"fudo-mock-api","version":"1.0.0",...}
+
 curl -s http://localhost:8444/health | jq .
+# → {"status":"ok","service":"matrix42-mock-api",...}
+
 curl -s http://localhost:8445/health | jq .
+# → {"status":"ok","service":"ad-mock-api",...}
+
 curl -s http://localhost:8447/health | jq .
+# → {"status":"ok","service":"servicenow-mock-api",...}
+
 curl -s http://localhost:8448/health | jq .
+# → {"status":"ok","service":"jsm-mock-api",...}
+
 curl -s http://localhost:8449/health | jq .
+# → {"status":"ok","service":"remedy-mock-api",...}
 
 # 🔐 Fudo PAM — Login
 curl -X POST http://localhost:8443/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"login":"admin","password":"admin123"}'
+# → 200 {"session_token":"<uuid>"}
 
 # 📋 Matrix42 — Get token
 curl -X POST http://localhost:8444/m42Services/api/ApiToken/GenerateAccessTokenFromApiToken/ \
   -H "Authorization: Bearer pamlab-dev-token" \
   -H "Content-Type: application/json"
+# → 200 {"RawToken":"<token>","ValidTo":"...","UserName":"api-user"}
 
 # 🏢 Active Directory — Bind
 curl -X POST http://localhost:8445/api/ad/auth/bind \
   -H "Content-Type: application/json" \
   -d '{"dn":"CN=admin","password":"admin"}'
+# → 200 {"token":"<uuid>","dn":"CN=admin,...","message":"Bind successful"}
 
 # ❄️ ServiceNow — List incidents
 curl -s http://localhost:8447/api/now/table/incident \
   -H "Authorization: Bearer pamlab-dev-token" | jq '.result | length'
+# → 7
 
 # 🎫 JSM — Search with JQL
 curl -s -X POST http://localhost:8448/rest/api/2/search \
   -H "Authorization: Bearer pamlab-dev-token" \
   -H "Content-Type: application/json" \
   -d '{"jql":"project = ITSM AND issuetype = Incident","maxResults":5}' | jq '.total'
+# → 3 (or more, depending on seed data)
 
 # 🏥 Remedy — List incidents
 curl -s "http://localhost:8449/api/arsys/v1/entry/HPD%3AHelp%20Desk" \
   -H "Authorization: Bearer pamlab-dev-token" | jq '.entries | length'
+# → 5 (seed incidents)
 ```
 
 > **Default API token for all services:** `pamlab-dev-token`
@@ -1464,6 +1481,21 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 - ✅ Follow existing code style
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## ⚠️ Mock API Realism
+
+| Mock API | Realistic | Simplified | Not Implemented |
+|----------|-----------|------------|-----------------|
+| **Fudo PAM** | Session mgmt, password rotation, JIT access, safes | Token auth (allowlist, not real LDAP) | HA, real encryption |
+| **Active Directory** | User/Group/OU CRUD, DN structure, memberOf | Password validation (allowlist) | Kerberos, LDAP protocol, GPO |
+| **Matrix42 ESM** | Tickets, assets, employees, fragments, webhooks | Auth (token-based, not SAML) | Real CMDB sync, workflows |
+| **Remedy/Helix** | Incidents, changes, assets, SLA, work orders | Auth (allowlist) | BMC.CORE CMDB forms |
+| **ServiceNow** | Incidents, changes, CMDB topology, catalog | Auth (dev token) | ACLs, business rules |
+| **JSM** | Issues, JQL, transitions, approvals, SLA, webhooks | Auth (session/bearer) | Tempo, Confluence links |
+
+> **Note:** These are developer sandbox mocks. They simulate API shape and workflow behavior, not production security or data consistency.
 
 ---
 

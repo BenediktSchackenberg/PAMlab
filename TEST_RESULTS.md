@@ -7,6 +7,14 @@ Date: 2026-03-31 17:28:00 UTC (re-tested after auth & webhook fixes)
 - Failed: 0
 - Warnings: 8
 
+## Changelog
+
+| Date | Commit | Change |
+|------|--------|--------|
+| 2026-03-31 | f9b6197 | Fixed AD auth, Remedy auth, Matrix42/JSM webhooks, Fudo server_id |
+| 2026-03-31 | 2bbbb3b | Code fixes for all 5 critical issues |
+| 2026-03-28 | Initial | First test run — 82 passed, 8 failed |
+
 ## Detailed Results
 
 ### 1. Fudo PAM (Port 8443)
@@ -258,6 +266,25 @@ Date: 2026-03-31 17:28:00 UTC (re-tested after auth & webhook fixes)
 #### Pipeline-Driven Onboarding
 - [PASS] Dry run of "Onboarding mit Genehmigung": completed — all 7 steps simulated
 - [PASS] Real run: executed Matrix42 ticket creation + AD steps (some steps may fail due to input requirements)
+
+---
+
+## Negative Tests (Auth Validation)
+
+These tests verify that invalid credentials are properly rejected.
+
+### Active Directory
+| Test | Method | Endpoint | Credentials | Expected | Actual |
+|------|--------|----------|-------------|----------|--------|
+| Invalid password | POST | `/api/ad/auth/bind` | `{"dn":"CN=admin","password":"wrong"}` | 401 | ✅ 401 — `{"error":"Invalid credentials"}` |
+| Unknown user | POST | `/api/ad/auth/bind` | `{"dn":"CN=nobody","password":"admin"}` | 401 | ✅ 401 — `{"error":"Invalid credentials"}` |
+| Missing fields | POST | `/api/ad/auth/bind` | `{}` | 400/401 | ✅ Rejected |
+
+### Remedy/Helix
+| Test | Method | Endpoint | Credentials | Expected | Actual |
+|------|--------|----------|-------------|----------|--------|
+| Invalid password | POST | `/api/jwt/login` | `{"username":"Allen","password":"wrong"}` | 401 | ✅ 401 — `Authentication failed: invalid password` |
+| Unknown user | POST | `/api/jwt/login` | `{"username":"nobody","password":"x"}` | 401 | ✅ 401 — `Authentication failed` |
 
 ---
 
