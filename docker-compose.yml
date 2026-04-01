@@ -158,11 +158,23 @@ services:
       - VITE_FUDO_URL=http://localhost:8443
       - VITE_M42_URL=http://localhost:8444
       - VITE_AD_URL=http://localhost:8445
+      - VITE_SNOW_URL=http://localhost:8447
+      - VITE_JSM_URL=http://localhost:8448
+      - VITE_REMEDY_URL=http://localhost:8449
+      - VITE_CYBERARK_URL=http://localhost:8450
     depends_on:
       fudo-mock:
         condition: service_healthy
       matrix42-mock:
         condition: service_healthy
       ad-mock:
+        condition: service_healthy
+      servicenow-mock:
+        condition: service_healthy
+      jsm-mock:
+        condition: service_healthy
+      remedy-mock:
+        condition: service_healthy
+      cyberark-mock:
         condition: service_healthy
     restart: unless-stopped

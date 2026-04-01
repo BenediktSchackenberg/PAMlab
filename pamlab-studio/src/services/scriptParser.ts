@@ -18,11 +18,12 @@ export function parseScript(script: string): ApiCall[] {
     snowBase: settings.snowUrl,
     jsmBase: settings.jsmUrl,
     remedyBase: settings.remedyUrl,
+    cyberarkBase: settings.cyberarkUrl,
   };
 
   // Substitute $varName in a string
   function subst(s: string): string {
-    return s.replace(/$(\w+)/g, (_, name) => baseVars[name] || `$${name}`);
+    return s.replace(/\$(\w+)/g, (_, name) => baseVars[name] || `$${name}`);
   }
 
   // Collect variable assignments (multi-line hashtable support)
@@ -39,7 +40,7 @@ export function parseScript(script: string): ApiCall[] {
     if (!trimmed || trimmed.startsWith('#')) continue;
 
     // Start of multi-line hashtable: $var = @{
-    const startMatch = trimmed.match(/^$(\w+)\s*=\s*@\{\s*$/);
+    const startMatch = trimmed.match(/^\$(\w+)\s*=\s*@\{\s*$/);
     if (startMatch) {
       currentVar = startMatch[1];
       currentBlock = [];
@@ -59,14 +60,14 @@ export function parseScript(script: string): ApiCall[] {
     }
 
     // Single-line hashtable: $var = @{ key = "val"; key2 = "val2" }
-    const singleMatch = trimmed.match(/^$(\w+)\s*=\s*@\{(.+)\}\s*$/);
+    const singleMatch = trimmed.match(/^\$(\w+)\s*=\s*@\{(.+)\}\s*$/);
     if (singleMatch) {
       vars[singleMatch[1]] = parseHashtable(singleMatch[2].split(';').map(s => s.trim()));
       continue;
     }
 
     // Simple string variable: $var = "value" or $var = 'value'
-    const strMatch = trimmed.match(/^$(\w+)\s*=\s*["']([^"']*)["']\s*$/);
+    const strMatch = trimmed.match(/^\$(\w+)\s*=\s*["']([^"']*)["']\s*$/);
     if (strMatch) {
       stringVars[strMatch[1]] = strMatch[2];
       baseVars[strMatch[1]] = strMatch[2]; // also add to base vars for substitution
@@ -74,7 +75,7 @@ export function parseScript(script: string): ApiCall[] {
     }
 
     // Array assignment: $var = @("val1") — store as array-like hashtable
-    const arrMatch = trimmed.match(/^$(\w+)\s*=\s*@\((.+)\)\s*$/);
+    const arrMatch = trimmed.match(/^\$(\w+)\s*=\s*@\((.+)\)\s*$/);
     if (arrMatch) {
       const items = arrMatch[2].match(/["']([^"']+)["']/g)?.map(s => s.replace(/["']/g, '')) || [];
       vars[arrMatch[1]] = { members: JSON.stringify(items) };
@@ -104,7 +105,7 @@ export function parseScript(script: string): ApiCall[] {
     }
 
     // Extract -Body with variable reference: ($var | ConvertTo-Json) or just $var
-    const bodyMatch = fullLine.match(/-Body\s+\(?$(\w+)/i);
+    const bodyMatch = fullLine.match(/-Body\s+\(?\$(\w+)/i);
     if (bodyMatch && vars[bodyMatch[1]]) {
       body = vars[bodyMatch[1]];
     }
@@ -131,7 +132,7 @@ function parseHashtable(lines: string[]): Record<string, string> {
   for (const line of lines) {
     if (!line || line.startsWith('#')) continue;
     // Match PowerShell boolean: key = $true / $false
-    const boolM = line.match(/^(\w+)\s*=\s*$(\w+)\s*;?\s*$/);
+    const boolM = line.match(/^(\w+)\s*=\s*\$(\w+)\s*;?\s*$/);
     if (boolM) {
       result[boolM[1]] = boolM[2] === 'true' ? 'true' : 'false';
       continue;

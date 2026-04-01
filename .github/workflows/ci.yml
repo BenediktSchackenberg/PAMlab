@@ -50,6 +50,9 @@ jobs:
       - name: Lint
         working-directory: pamlab-studio
         run: npm run lint
+      - name: Test
+        working-directory: pamlab-studio
+        run: npm test
       - name: Build
         working-directory: pamlab-studio
         run: npm run build

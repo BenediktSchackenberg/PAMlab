@@ -1,5 +1,5 @@
 // =============================================================================
-// PAMlab Pipeline Engine — REST API (Port 8446)
+// PAMlab Pipeline Engine - REST API (Port 8446)
 // =============================================================================
 
 const express = require('express');
@@ -17,6 +17,7 @@ const ActiveDirectoryConnector = require('./connectors/active-directory');
 const app = express();
 const PORT = process.env.PORT || 8446;
 const PIPELINES_DIR = path.join(__dirname, '../pipelines');
+const PIPELINES_ROOT = path.resolve(PIPELINES_DIR);
 
 // --- Middleware ---
 app.use(cors());
@@ -39,12 +40,47 @@ registry.register(
 
 const runner = new PipelineRunner(registry);
 
+function resolvePipelineFile(name) {
+  if (typeof name !== 'string' || !name.trim()) {
+    const error = new Error('Ungültiger Pipeline-Dateiname');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!/^[\w.-]+\.ya?ml$/i.test(name)) {
+    const error = new Error('Ungültiger Pipeline-Dateiname');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const filePath = path.resolve(PIPELINES_ROOT, name);
+  if (!filePath.startsWith(`${PIPELINES_ROOT}${path.sep}`)) {
+    const error = new Error('Ungültiger Pipeline-Dateiname');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return filePath;
+}
+
+async function getExistingPipelineFile(name) {
+  const filePath = resolvePipelineFile(name);
+  try {
+    await fs.promises.access(filePath);
+    return filePath;
+  } catch {
+    const error = new Error(`Pipeline "${name}" nicht gefunden`);
+    error.statusCode = 404;
+    throw error;
+  }
+}
+
 // --- Health Check ---
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'pipeline-engine', timestamp: new Date().toISOString() });
 });
 
-// --- GET /pipelines — Verfügbare Pipelines auflisten ---
+// --- GET /pipelines - Verfügbare Pipelines auflisten ---
 app.get('/pipelines', async (req, res) => {
   try {
     const pipelines = await runner.listPipelines(PIPELINES_DIR);
@@ -54,14 +90,14 @@ app.get('/pipelines', async (req, res) => {
   }
 });
 
-// --- GET /pipelines/runs — Letzte Runs auflisten (BEFORE :name to avoid conflict) ---
+// --- GET /pipelines/runs - Letzte Runs auflisten (BEFORE :name to avoid conflict) ---
 app.get('/pipelines/runs', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const runs = runner.getRuns(limit);
   res.json({ runs });
 });
 
-// --- GET /pipelines/runs/:id — Run-Details ---
+// --- GET /pipelines/runs/:id - Run-Details ---
 app.get('/pipelines/runs/:id', (req, res) => {
   const run = runner.getRun(req.params.id);
   if (!run) {
@@ -70,54 +106,41 @@ app.get('/pipelines/runs/:id', (req, res) => {
   res.json(run);
 });
 
-// --- GET /pipelines/:name — Pipeline-Definition abrufen ---
+// --- GET /pipelines/:name - Pipeline-Definition abrufen ---
 app.get('/pipelines/:name', async (req, res) => {
   try {
-    const filePath = path.join(PIPELINES_DIR, req.params.name);
-    try {
-      await fs.promises.access(filePath);
-    } catch {
-      return res.status(404).json({ error: `Pipeline "${req.params.name}" nicht gefunden` });
-    }
+    const filePath = await getExistingPipelineFile(req.params.name);
     const content = await fs.promises.readFile(filePath, 'utf8');
     const pipeline = yaml.load(content);
     res.json({ pipeline, raw: content });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
-// --- POST /pipelines/validate — Pipeline validieren ---
+// --- POST /pipelines/validate - Pipeline validieren ---
 app.post('/pipelines/validate', async (req, res) => {
   try {
     const { file, yaml: yamlContent } = req.body;
 
     if (yamlContent) {
-      const pipeline = yaml.load(yamlContent);
-      if (!pipeline.name)
-        return res
-          .status(400)
-          .json({ valid: false, errors: ['Pipeline benötigt ein "name" Feld'] });
-      if (!pipeline.steps)
-        return res
-          .status(400)
-          .json({ valid: false, errors: ['Pipeline benötigt ein "steps" Array'] });
+      const pipeline = runner.validateDefinition(yaml.load(yamlContent), 'inline');
       return res.json({ valid: true, name: pipeline.name, steps: pipeline.steps.length });
     }
 
     if (file) {
-      const filePath = path.join(PIPELINES_DIR, file);
+      const filePath = resolvePipelineFile(file);
       const result = await runner.validate(filePath);
       return res.json(result);
     }
 
     res.status(400).json({ error: '"file" oder "yaml" Parameter erforderlich' });
   } catch (error) {
-    res.status(400).json({ valid: false, errors: [error.message] });
+    res.status(error.statusCode || 400).json({ valid: false, errors: [error.message] });
   }
 });
 
-// --- POST /pipelines/run — Pipeline ausführen ---
+// --- POST /pipelines/run - Pipeline ausführen ---
 app.post('/pipelines/run', async (req, res) => {
   try {
     const { file, vars = {}, dryRun = false } = req.body;
@@ -126,28 +149,22 @@ app.post('/pipelines/run', async (req, res) => {
       return res.status(400).json({ error: '"file" Parameter erforderlich' });
     }
 
-    const filePath = path.join(PIPELINES_DIR, file);
-    try {
-      await fs.promises.access(filePath);
-    } catch {
-      return res.status(404).json({ error: `Pipeline "${file}" nicht gefunden` });
-    }
-
+    const filePath = await getExistingPipelineFile(file);
     const result = await runner.run(filePath, vars, { dryRun });
     const statusCode = result.status === 'completed' ? 200 : 500;
     res.status(statusCode).json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
-// --- GET /connectors — Registrierte Connectors ---
+// --- GET /connectors - Registrierte Connectors ---
 app.get('/connectors', (req, res) => {
   const connectors = registry.listDetailed();
   res.json({ connectors });
 });
 
-// --- GET /connectors/:name/actions — Actions eines Connectors ---
+// --- GET /connectors/:name/actions - Actions eines Connectors ---
 app.get('/connectors/:name/actions', (req, res) => {
   try {
     const connector = registry.get(req.params.name);

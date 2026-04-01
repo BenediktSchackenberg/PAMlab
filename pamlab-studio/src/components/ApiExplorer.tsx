@@ -14,6 +14,7 @@ export default function ApiExplorer() {
     'ServiceNow ITSM': settings.snowUrl,
     'Jira Service Management': settings.jsmUrl,
     'BMC Remedy / Helix': settings.remedyUrl,
+    'CyberArk PVWA': settings.cyberarkUrl,
   };
 
   const tryIt = async (apiName: string, method: string, path: string) => {

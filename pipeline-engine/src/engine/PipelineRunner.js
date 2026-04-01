@@ -8,7 +8,6 @@ const yaml = require('js-yaml');
 const { v4: uuidv4 } = require('uuid');
 const StepExecutor = require('./StepExecutor');
 const RollbackHandler = require('./RollbackHandler');
-const VariableResolver = require('./VariableResolver');
 
 const log = {
   info: (msg, meta = {}) =>
@@ -37,9 +36,37 @@ class PipelineRunner {
    */
   async loadPipeline(filePath) {
     const content = await fs.promises.readFile(filePath, 'utf8');
-    const pipeline = yaml.load(content);
-    this._validatePipeline(pipeline, filePath);
-    return pipeline;
+    return this.validateDefinition(yaml.load(content), filePath);
+  }
+
+  /**
+   * Normalisiert Legacy-Felder auf das aktuelle Pipeline-Schema
+   */
+  _normalizePipeline(pipeline) {
+    if (!pipeline || typeof pipeline !== 'object') return pipeline;
+
+    const normalizeStep = (step) => {
+      if (!step || typeof step !== 'object') return step;
+      if (step.system || !step.connector) return step;
+      return { ...step, system: step.connector };
+    };
+
+    return {
+      ...pipeline,
+      steps: Array.isArray(pipeline.steps) ? pipeline.steps.map(normalizeStep) : pipeline.steps,
+      rollback: Array.isArray(pipeline.rollback)
+        ? pipeline.rollback.map(normalizeStep)
+        : pipeline.rollback,
+    };
+  }
+
+  /**
+   * Validiert und normalisiert eine geladene Pipeline-Definition
+   */
+  validateDefinition(pipeline, source = 'unknown') {
+    const normalized = this._normalizePipeline(pipeline);
+    this._validatePipeline(normalized, source);
+    return normalized;
   }
 
   /**
@@ -88,8 +115,7 @@ class PipelineRunner {
   async validate(filePath) {
     try {
       const content = await fs.promises.readFile(filePath, 'utf8');
-      const pipeline = yaml.load(content);
-      this._validatePipeline(pipeline, filePath);
+      const pipeline = this.validateDefinition(yaml.load(content), filePath);
       return { valid: true, name: pipeline.name, steps: pipeline.steps.length, errors: [] };
     } catch (error) {
       return { valid: false, errors: [error.message] };

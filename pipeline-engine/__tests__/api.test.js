@@ -53,10 +53,18 @@ describe('Pipeline Engine', () => {
   // Validate pipeline - yaml content
   test('POST /pipelines/validate with valid yaml', async () => {
     const res = await request(app).post('/pipelines/validate').send({
-      yaml: 'name: test-pipeline\nsteps:\n  - name: step1\n    connector: fudo-pam\n    action: list-users'
+      yaml: 'name: test-pipeline\nsteps:\n  - name: step1\n    connector: fudo-pam\n    action: list-users',
     });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(true);
+  });
+
+  test('POST /pipelines/validate rejects inline yaml without system or connector', async () => {
+    const res = await request(app).post('/pipelines/validate').send({
+      yaml: 'name: test-pipeline\nsteps:\n  - name: step1\n    action: list-users',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.valid).toBe(false);
   });
 
   test('POST /pipelines/validate with invalid yaml (no name)', async () => {
@@ -91,6 +99,11 @@ describe('Pipeline Engine', () => {
     expect(res.status).toBe(404);
   });
 
+  test('POST /pipelines/run rejects path traversal attempts', async () => {
+    const res = await request(app).post('/pipelines/run').send({ file: '../package.json' });
+    expect(res.status).toBe(400);
+  });
+
   // Pipeline definition - existing file
   test('GET /pipelines/:name for existing pipeline', async () => {
     const list = await request(app).get('/pipelines');
@@ -105,5 +118,16 @@ describe('Pipeline Engine', () => {
   test('GET /pipelines/nonexistent.yaml returns 404', async () => {
     const res = await request(app).get('/pipelines/nonexistent.yaml');
     expect(res.status).toBe(404);
+  });
+
+  test('GET /pipelines/:name rejects path traversal attempts', async () => {
+    const res = await request(app).get('/pipelines/..%2Fpackage.json');
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /pipelines/validate rejects path traversal file names', async () => {
+    const res = await request(app).post('/pipelines/validate').send({ file: '../package.json' });
+    expect(res.status).toBe(400);
+    expect(res.body.valid).toBe(false);
   });
 });

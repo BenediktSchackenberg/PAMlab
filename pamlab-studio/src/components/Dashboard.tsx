@@ -3,6 +3,26 @@ import type { HealthStatus, Page } from '../types';
 import { checkHealth, getSettings, apiFetch } from '../services/api';
 import ApiStatusCard from './ApiStatusCard';
 
+type StatsResponse = {
+  total?: number;
+  items?: unknown[];
+  users?: unknown[];
+  data?: unknown[];
+};
+
+function extractCount(data: unknown): string {
+  if (Array.isArray(data)) return String(data.length);
+  if (!data || typeof data !== 'object') return '—';
+
+  const typed = data as StatsResponse;
+  if (typeof typed.total === 'number') return String(typed.total);
+  if (Array.isArray(typed.items)) return String(typed.items.length);
+  if (Array.isArray(typed.users)) return String(typed.users.length);
+  if (Array.isArray(typed.data)) return String(typed.data.length);
+
+  return '—';
+}
+
 export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const [statuses, setStatuses] = useState<HealthStatus[]>([]);
   const [resetting, setResetting] = useState(false);
@@ -16,25 +36,32 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
   ]);
   const settings = getSettings();
 
-  const apis = [
-    { name: 'Fudo PAM', url: settings.fudoUrl },
-    { name: 'Matrix42 ESM', url: settings.matrixUrl },
-    { name: 'Active Directory', url: settings.adUrl },
-    { name: 'ServiceNow ITSM', url: settings.snowUrl },
-    { name: 'Jira Service Mgmt', url: settings.jsmUrl },
-    { name: 'BMC Remedy/Helix', url: settings.remedyUrl },
-  ];
-
   const pollHealth = useCallback(async () => {
+    const apis = [
+      { name: 'Fudo PAM', url: settings.fudoUrl },
+      { name: 'Matrix42 ESM', url: settings.matrixUrl },
+      { name: 'Active Directory', url: settings.adUrl },
+      { name: 'ServiceNow ITSM', url: settings.snowUrl },
+      { name: 'Jira Service Mgmt', url: settings.jsmUrl },
+      { name: 'BMC Remedy/Helix', url: settings.remedyUrl },
+      { name: 'CyberArk PVWA', url: settings.cyberarkUrl },
+    ];
     const results = await Promise.all(
       apis.map(async (api) => {
-        const h = await checkHealth(api.url);
-        return { name: api.name, url: api.url, ...h };
-      })
+        const health = await checkHealth(api.url);
+        return { name: api.name, url: api.url, ...health };
+      }),
     );
     setStatuses(results);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    settings.adUrl,
+    settings.cyberarkUrl,
+    settings.fudoUrl,
+    settings.jsmUrl,
+    settings.matrixUrl,
+    settings.remedyUrl,
+    settings.snowUrl,
+  ]);
 
   const fetchStats = useCallback(async () => {
     const base = settings.fudoUrl;
@@ -45,86 +72,112 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
       { label: 'Sessions', icon: '🔗', url: `${base}/api/v2/sessions` },
       { label: 'Pending', icon: '⏳', url: `${base}/api/v2/access-requests?status=pending` },
     ];
+
     const results = await Promise.all(
-      fetches.map(async (f) => {
-        try {
-          const res = await fetch(f.url);
-          if (!res.ok) return { ...f, value: '—' };
-          const data = await res.json();
-          const count = data.total ?? data.length ?? (Array.isArray(data) ? data.length : '—');
-          return { ...f, value: String(count) };
-        } catch {
-          return { ...f, value: '—' };
+      fetches.map(async (entry) => {
+        const res = await apiFetch(entry.url, 'GET');
+        if (res.status < 200 || res.status >= 400) {
+          return { ...entry, value: '—' };
         }
-      })
+        return { ...entry, value: extractCount(res.data) };
+      }),
     );
-    setStats(results.map(r => ({ label: r.label, value: r.value, icon: r.icon })));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    setStats(results.map((result) => ({ label: result.label, value: result.value, icon: result.icon })));
+  }, [settings.fudoUrl]);
 
   useEffect(() => {
-    pollHealth();
-    fetchStats();
-    const i = setInterval(pollHealth, 10000);
-    return () => clearInterval(i);
+    const loadDashboard = async () => {
+      await Promise.all([pollHealth(), fetchStats()]);
+    };
+
+    void loadDashboard();
+    const interval = setInterval(() => {
+      void pollHealth();
+    }, 10000);
+    return () => clearInterval(interval);
   }, [pollHealth, fetchStats]);
 
   const quickActions = [
-    { icon: '▶️', title: 'Run Onboarding Demo', desc: 'Test the full onboarding flow', template: 0, color: 'from-blue-600/20 to-blue-700/10 border-blue-600/30 hover:border-blue-500' },
-    { icon: '🚨', title: 'Emergency Revoke Demo', desc: 'Block a compromised account in seconds', template: 3, color: 'from-red-600/20 to-red-700/10 border-red-600/30 hover:border-red-500' },
-    { icon: '🔧', title: 'Custom Workflow', desc: 'Start from scratch or pick a template', template: -1, color: 'from-purple-600/20 to-purple-700/10 border-purple-600/30 hover:border-purple-500' },
+    {
+      icon: '▶️',
+      title: 'Run Onboarding Demo',
+      desc: 'Test the full onboarding flow',
+      template: 0,
+      color: 'from-blue-600/20 to-blue-700/10 border-blue-600/30 hover:border-blue-500',
+    },
+    {
+      icon: '🚨',
+      title: 'Emergency Revoke Demo',
+      desc: 'Block a compromised account in seconds',
+      template: 3,
+      color: 'from-red-600/20 to-red-700/10 border-red-600/30 hover:border-red-500',
+    },
+    {
+      icon: '🔧',
+      title: 'Custom Workflow',
+      desc: 'Start from scratch or pick a template',
+      template: -1,
+      color: 'from-purple-600/20 to-purple-700/10 border-purple-600/30 hover:border-purple-500',
+    },
   ];
 
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-100 mb-6">Dashboard</h2>
 
-      <div className="grid grid-cols-6 gap-4 mb-8">
-        {statuses.map((s) => (
-          <ApiStatusCard key={s.name} status={s} />
+      <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 xl:grid-cols-7">
+        {statuses.map((status) => (
+          <ApiStatusCard key={status.name} status={status} />
         ))}
       </div>
 
-      <div className="grid grid-cols-5 gap-4 mb-8">
-        {stats.map((s) => (
-          <div key={s.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
-            <div className="text-2xl mb-1">{s.icon}</div>
-            <div className="text-xl font-bold text-gray-100">{s.value}</div>
-            <div className="text-xs text-gray-500">{s.label}</div>
+      <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 xl:grid-cols-5">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+            <div className="text-2xl mb-1">{stat.icon}</div>
+            <div className="text-xl font-bold text-gray-100">{stat.value}</div>
+            <div className="text-xs text-gray-500">{stat.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Quick Actions */}
       <h3 className="text-lg font-semibold text-gray-200 mb-4">Quick Actions</h3>
-      <div className="grid grid-cols-3 gap-4">
-        {quickActions.map((qa) => (
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {quickActions.map((quickAction) => (
           <button
-            key={qa.title}
+            key={quickAction.title}
             onClick={() => onNavigate('workflow')}
-            className={`text-left p-5 rounded-xl border bg-gradient-to-br ${qa.color} transition-colors`}
+            className={`text-left p-5 rounded-xl border bg-gradient-to-br ${quickAction.color} transition-colors`}
           >
-            <div className="text-2xl mb-2">{qa.icon}</div>
-            <div className="text-base font-semibold text-gray-100">{qa.title}</div>
-            <div className="text-sm text-gray-400 mt-1">{qa.desc}</div>
+            <div className="text-2xl mb-2">{quickAction.icon}</div>
+            <div className="text-base font-semibold text-gray-100">{quickAction.title}</div>
+            <div className="text-sm text-gray-400 mt-1">{quickAction.desc}</div>
           </button>
         ))}
       </div>
 
-      {/* Reset Mock Data */}
       <div className="mt-6 flex items-center gap-3">
         <button
           onClick={async () => {
             setResetting(true);
             setResetMsg('');
             const resetUrls = [
-              '/api/fudo/reset', '/api/matrix42/reset', '/api/ad/reset',
-              '/api/snow/reset', '/api/jsm/reset', '/api/remedy/reset',
+              `${settings.fudoUrl}/reset`,
+              `${settings.matrixUrl}/reset`,
+              `${settings.adUrl}/reset`,
+              `${settings.snowUrl}/reset`,
+              `${settings.jsmUrl}/reset`,
+              `${settings.remedyUrl}/reset`,
+              `${settings.cyberarkUrl}/reset`,
             ];
             const resetResults = await Promise.allSettled(
-              resetUrls.map(url => apiFetch(url, 'POST'))
+              resetUrls.map((url) => apiFetch(url, 'POST')),
             );
-            const ok = resetResults.filter(r => r.status === 'fulfilled' && (r.value as { status: number }).status === 200).length;
+            const ok = resetResults.filter(
+              (result) =>
+                result.status === 'fulfilled' && (result.value as { status: number }).status === 200,
+            ).length;
             setResetMsg(`Reset ${ok}/${resetUrls.length} services`);
             setResetting(false);
             setTimeout(() => setResetMsg(''), 3000);
