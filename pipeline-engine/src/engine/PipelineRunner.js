@@ -1,13 +1,12 @@
-// =============================================================================
-// PipelineRunner — Lädt YAML-Pipelines und führt Steps sequenziell aus
-// =============================================================================
-
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 const { v4: uuidv4 } = require('uuid');
-const StepExecutor = require('./StepExecutor');
+
+const ConditionEvaluator = require('./ConditionEvaluator');
 const RollbackHandler = require('./RollbackHandler');
+const StepExecutor = require('./StepExecutor');
+const VariableResolver = require('./VariableResolver');
 
 const log = {
   info: (msg, meta = {}) =>
@@ -19,36 +18,54 @@ const log = {
 };
 
 class PipelineRunner {
-  /**
-   * @param {ConnectorRegistry} registry - Connector-Registry
-   */
   constructor(registry) {
     this.registry = registry;
     this.stepExecutor = new StepExecutor(registry);
     this.rollbackHandler = new RollbackHandler(registry);
-    this.runs = new Map(); // Run-History
+    this.runs = new Map();
   }
 
-  /**
-   * Lädt eine Pipeline-Definition aus einer YAML-Datei
-   * @param {string} filePath - Pfad zur YAML-Datei
-   * @returns {object} Pipeline-Definition
-   */
   async loadPipeline(filePath) {
     const content = await fs.promises.readFile(filePath, 'utf8');
     return this.validateDefinition(yaml.load(content), filePath);
   }
 
-  /**
-   * Normalisiert Legacy-Felder auf das aktuelle Pipeline-Schema
-   */
+  validateDefinition(pipeline, source = 'unknown') {
+    const normalized = this._normalizePipeline(pipeline);
+    this._validatePipeline(normalized, source);
+    return normalized;
+  }
+
   _normalizePipeline(pipeline) {
-    if (!pipeline || typeof pipeline !== 'object') return pipeline;
+    if (!pipeline || typeof pipeline !== 'object') {
+      return pipeline;
+    }
 
     const normalizeStep = (step) => {
-      if (!step || typeof step !== 'object') return step;
-      if (step.system || !step.connector) return step;
-      return { ...step, system: step.connector };
+      if (!step || typeof step !== 'object') {
+        return step;
+      }
+
+      const normalized = { ...step };
+
+      if (!normalized.system && normalized.connector) {
+        normalized.system = normalized.connector;
+      }
+
+      if (Array.isArray(normalized.parallel)) {
+        normalized.parallel = normalized.parallel.map(normalizeStep);
+      }
+
+      if (normalized.foreach && typeof normalized.foreach === 'object') {
+        normalized.foreach = {
+          ...normalized.foreach,
+          steps: Array.isArray(normalized.foreach.steps)
+            ? normalized.foreach.steps.map(normalizeStep)
+            : normalized.foreach.steps,
+        };
+      }
+
+      return normalized;
     };
 
     return {
@@ -60,44 +77,29 @@ class PipelineRunner {
     };
   }
 
-  /**
-   * Validiert und normalisiert eine geladene Pipeline-Definition
-   */
-  validateDefinition(pipeline, source = 'unknown') {
-    const normalized = this._normalizePipeline(pipeline);
-    this._validatePipeline(normalized, source);
-    return normalized;
-  }
-
-  /**
-   * Validiert eine Pipeline-Definition
-   */
   _validatePipeline(pipeline, source = 'unknown') {
     const errors = [];
 
     if (!pipeline || typeof pipeline !== 'object') {
       throw new Error(
-        `Pipeline-Validierung fehlgeschlagen (${source}):\n  - Ungültiges Pipeline-Format`,
+        `Pipeline-Validierung fehlgeschlagen (${source}):\n  - Ungueltiges Pipeline-Format`,
       );
     }
 
-    if (!pipeline.name) errors.push('Pipeline benötigt ein "name" Feld');
-    if (!pipeline.steps || !Array.isArray(pipeline.steps)) {
-      errors.push('Pipeline benötigt ein "steps" Array');
-    } else {
-      pipeline.steps.forEach((step, i) => {
-        if (!step.name) errors.push(`Step ${i + 1}: "name" fehlt`);
-        if (!step.system && step.action !== 'wait' && !step.wait) {
-          errors.push(`Step ${i + 1} (${step.name || '?'}): "system" fehlt`);
-        }
-        if (!step.action && !step.wait) {
-          errors.push(`Step ${i + 1} (${step.name || '?'}): "action" fehlt`);
-        }
-      });
+    if (!pipeline.name) {
+      errors.push('Pipeline benoetigt ein "name" Feld');
     }
 
-    if (pipeline.rollback && !Array.isArray(pipeline.rollback)) {
+    if (!Array.isArray(pipeline.steps) || pipeline.steps.length === 0) {
+      errors.push('Pipeline benoetigt ein nicht-leeres "steps" Array');
+    } else {
+      this._validateStepList(pipeline.steps, 'steps', errors);
+    }
+
+    if (pipeline.rollback !== undefined && !Array.isArray(pipeline.rollback)) {
       errors.push('"rollback" muss ein Array sein');
+    } else if (Array.isArray(pipeline.rollback)) {
+      this._validateStepList(pipeline.rollback, 'rollback', errors, { allowBlocks: false });
     }
 
     if (errors.length > 0) {
@@ -109,26 +111,94 @@ class PipelineRunner {
     return { valid: true, errors: [] };
   }
 
-  /**
-   * Validiert eine Pipeline und gibt Ergebnis zurück (ohne Exception)
-   */
+  _validateStepList(steps, location, errors, options = {}) {
+    const allowBlocks = options.allowBlocks !== false;
+
+    steps.forEach((step, index) => {
+      const label = step && step.name ? step.name : `${location}[${index}]`;
+
+      if (!step || typeof step !== 'object') {
+        errors.push(`${label}: Step muss ein Objekt sein`);
+        return;
+      }
+
+      const hasParallel = Array.isArray(step.parallel);
+      const hasForeach = step.foreach !== undefined;
+      const isWait = step.action === 'wait' || step.wait !== undefined;
+
+      if ((hasParallel && hasForeach) || (hasParallel && isWait) || (hasForeach && isWait)) {
+        errors.push(`${label}: Ein Step darf nur einen Modus verwenden`);
+        return;
+      }
+
+      if (hasParallel) {
+        if (!allowBlocks) {
+          errors.push(`${label}: Kontrollstrukturen sind hier nicht erlaubt`);
+          return;
+        }
+
+        if (step.parallel.length === 0) {
+          errors.push(`${label}: "parallel" benoetigt mindestens einen Step`);
+          return;
+        }
+
+        this._validateStepList(step.parallel, `${label}.parallel`, errors, options);
+        return;
+      }
+
+      if (hasForeach) {
+        if (!allowBlocks) {
+          errors.push(`${label}: Kontrollstrukturen sind hier nicht erlaubt`);
+          return;
+        }
+
+        if (!step.foreach || typeof step.foreach !== 'object') {
+          errors.push(`${label}: "foreach" muss ein Objekt sein`);
+          return;
+        }
+
+        if (step.foreach.items === undefined) {
+          errors.push(`${label}: "foreach.items" fehlt`);
+        }
+
+        if (!Array.isArray(step.foreach.steps) || step.foreach.steps.length === 0) {
+          errors.push(`${label}: "foreach.steps" benoetigt mindestens einen Step`);
+          return;
+        }
+
+        this._validateStepList(step.foreach.steps, `${label}.foreach.steps`, errors, options);
+        return;
+      }
+
+      if (isWait) {
+        return;
+      }
+
+      if (!step.system) {
+        errors.push(`${label}: "system" fehlt`);
+      }
+
+      if (!step.action) {
+        errors.push(`${label}: "action" fehlt`);
+      }
+    });
+  }
+
   async validate(filePath) {
     try {
       const content = await fs.promises.readFile(filePath, 'utf8');
       const pipeline = this.validateDefinition(yaml.load(content), filePath);
-      return { valid: true, name: pipeline.name, steps: pipeline.steps.length, errors: [] };
+      return {
+        valid: true,
+        name: pipeline.name,
+        steps: this._countSteps(pipeline.steps),
+        errors: [],
+      };
     } catch (error) {
       return { valid: false, errors: [error.message] };
     }
   }
 
-  /**
-   * Führt eine Pipeline aus
-   * @param {string} filePath - Pfad zur YAML-Datei
-   * @param {object} vars - Variablen (z.B. { user: 'j.doe', group: 'Admins' })
-   * @param {object} options - Optionen (dryRun, etc.)
-   * @returns {object} Run-Ergebnis
-   */
   async run(filePath, vars = {}, options = {}) {
     const runId = uuidv4();
     const pipeline = await this.loadPipeline(filePath);
@@ -140,12 +210,16 @@ class PipelineRunner {
       mode: dryRun ? 'dry-run' : 'live',
     });
 
-    // Laufzeit-Kontext aufbauen
     const context = {
-      trigger: { ...vars, ...pipeline.trigger },
-      vars,
+      trigger: { ...(pipeline.trigger || {}), ...vars },
+      vars: { ...vars },
       steps: {},
-      run: { id: runId, pipeline: pipeline.name, startedAt: new Date().toISOString() },
+      loop: null,
+      run: {
+        id: runId,
+        pipeline: pipeline.name,
+        startedAt: new Date().toISOString(),
+      },
     };
 
     const run = {
@@ -163,35 +237,29 @@ class PipelineRunner {
 
     this.runs.set(runId, run);
 
-    // Steps sequenziell ausführen
-    for (let i = 0; i < pipeline.steps.length; i++) {
-      const step = pipeline.steps[i];
-      const stepName = step.name || `step-${i + 1}`;
+    const execution = await this._executeStepList(pipeline.steps, context, { dryRun, runId });
+    run.steps = execution.results;
 
-      log.info(`Executing step ${i + 1}/${pipeline.steps.length}`, { step: stepName, runId });
+    if (execution.failed) {
+      log.error(`Step failed: ${execution.failed.qualifiedName}`, {
+        error: execution.failed.error,
+        runId,
+      });
 
-      const result = await this.stepExecutor.execute(step, context, dryRun);
-      run.steps.push({ name: stepName, ...result });
+      run.status = 'failed';
+      run.failedAt = execution.failed.qualifiedName;
 
-      // Ergebnis im Kontext speichern für spätere Steps
-      context.steps[stepName] = result;
-
-      if (result.status === 'failed') {
-        log.error(`Step failed: ${stepName}`, { error: result.error, runId });
-        run.status = 'failed';
-        run.failedAt = stepName;
-
-        // Rollback ausführen
-        if (pipeline.rollback && pipeline.rollback.length > 0) {
-          const rollbackResults = await this.rollbackHandler.execute(pipeline.rollback, context, i);
-          run.rollback = rollbackResults;
-        }
-
-        run.completedAt = new Date().toISOString();
-        return run;
+      if (pipeline.rollback && pipeline.rollback.length > 0) {
+        const rollbackResults = await this.rollbackHandler.execute(
+          pipeline.rollback,
+          context,
+          execution.failedIndex,
+        );
+        run.rollback = rollbackResults;
       }
 
-      log.info(`Step completed`, { step: stepName, durationMs: result.durationMs, runId });
+      run.completedAt = new Date().toISOString();
+      return run;
     }
 
     run.status = 'completed';
@@ -203,9 +271,6 @@ class PipelineRunner {
     return run;
   }
 
-  /**
-   * Gibt alle verfügbaren Pipeline-Dateien zurück
-   */
   async listPipelines(pipelinesDir) {
     const dir = pipelinesDir || path.join(__dirname, '../../pipelines');
 
@@ -218,39 +283,301 @@ class PipelineRunner {
     const files = await fs.promises.readdir(dir);
     const results = [];
 
-    for (const f of files.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))) {
+    for (const fileName of files.filter((entry) => entry.endsWith('.yaml') || entry.endsWith('.yml'))) {
       try {
-        const content = await fs.promises.readFile(path.join(dir, f), 'utf8');
-        const pipeline = yaml.load(content);
+        const fullPath = path.join(dir, fileName);
+        const content = await fs.promises.readFile(fullPath, 'utf8');
+        const pipeline = this.validateDefinition(yaml.load(content), fullPath);
         results.push({
-          file: f,
-          name: pipeline.name || f,
+          file: fileName,
+          name: pipeline.name || fileName,
           description: pipeline.description || '',
-          steps: (pipeline.steps || []).length,
+          steps: this._countSteps(pipeline.steps),
           hasRollback: !!(pipeline.rollback && pipeline.rollback.length > 0),
         });
       } catch {
-        results.push({ file: f, name: f, error: 'Parsing fehlgeschlagen' });
+        results.push({ file: fileName, name: fileName, error: 'Parsing fehlgeschlagen' });
       }
     }
 
     return results;
   }
 
-  /**
-   * Gibt die Run-History zurück
-   */
   getRuns(limit = 50) {
     return Array.from(this.runs.values())
       .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
       .slice(0, limit);
   }
 
-  /**
-   * Gibt einen einzelnen Run zurück
-   */
   getRun(runId) {
     return this.runs.get(runId) || null;
+  }
+
+  async _executeStepList(steps, context, options, scope = '') {
+    const results = [];
+
+    for (let index = 0; index < steps.length; index += 1) {
+      const step = steps[index];
+      const result = await this._executeStep(step, context, options, scope);
+      results.push(result);
+
+      if (result.status === 'failed') {
+        return { results, failed: result, failedIndex: index };
+      }
+    }
+
+    return { results, failed: null, failedIndex: -1 };
+  }
+
+  async _executeStep(step, context, options, scope = '') {
+    const startedAt = Date.now();
+    const stepName = step.name || this._defaultStepName(step);
+    const qualifiedName = scope ? `${scope} / ${stepName}` : stepName;
+    const stepType = this._getStepType(step);
+
+    if (!ConditionEvaluator.evaluate(step.condition, context)) {
+      const skipped = {
+        name: stepName,
+        qualifiedName,
+        type: stepType,
+        status: 'skipped',
+        reason: 'condition-false',
+        durationMs: Date.now() - startedAt,
+      };
+      context.steps[qualifiedName] = skipped;
+      return skipped;
+    }
+
+    if (Array.isArray(step.parallel)) {
+      return this._executeParallelStep(step, context, options, qualifiedName, stepName, startedAt);
+    }
+
+    if (step.foreach) {
+      return this._executeForeachStep(step, context, options, qualifiedName, stepName, startedAt);
+    }
+
+    log.info(`Executing step`, {
+      step: qualifiedName,
+      runId: options.runId,
+      type: stepType,
+    });
+
+    const result = await this.stepExecutor.execute(step, context, options.dryRun);
+    const enriched = {
+      name: stepName,
+      qualifiedName,
+      type: stepType,
+      ...result,
+    };
+
+    context.steps[qualifiedName] = enriched;
+
+    if (enriched.status === 'success') {
+      log.info(`Step completed`, {
+        step: qualifiedName,
+        durationMs: enriched.durationMs,
+        runId: options.runId,
+      });
+    }
+
+    return enriched;
+  }
+
+  async _executeParallelStep(step, context, options, qualifiedName, stepName, startedAt) {
+    const branchRuns = await Promise.all(
+      step.parallel.map(async (branchStep) => {
+        const branchContext = this._cloneContext(context);
+        const branchResult = await this._executeStep(branchStep, branchContext, options, qualifiedName);
+        return { branchContext, branchResult };
+      }),
+    );
+
+    branchRuns.forEach(({ branchContext }) => this._mergeContextSteps(context, branchContext));
+
+    const branches = branchRuns.map(({ branchResult }) => branchResult);
+    const failedBranch = branches.find((branch) => branch.status === 'failed');
+    const summary = this._summarizeNestedResults(branches);
+
+    const result = {
+      name: stepName,
+      qualifiedName,
+      type: 'parallel',
+      status: failedBranch ? 'failed' : summary.success > 0 ? 'success' : 'skipped',
+      branches,
+      result: summary,
+      error: failedBranch ? failedBranch.error : undefined,
+      durationMs: Date.now() - startedAt,
+    };
+
+    context.steps[qualifiedName] = result;
+    return result;
+  }
+
+  async _executeForeachStep(step, context, options, qualifiedName, stepName, startedAt) {
+    const items = VariableResolver.resolve(step.foreach.items, context);
+    if (!Array.isArray(items)) {
+      const failed = {
+        name: stepName,
+        qualifiedName,
+        type: 'foreach',
+        status: 'failed',
+        error: `"foreach.items" muss zu einem Array aufgeloest werden`,
+        durationMs: Date.now() - startedAt,
+      };
+      context.steps[qualifiedName] = failed;
+      return failed;
+    }
+
+    const alias = step.foreach.as || 'item';
+    const iterations = [];
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const iterationContext = this._cloneContext(context);
+      const iterationScope = `${qualifiedName} / ${alias} ${index + 1}`;
+
+      iterationContext.loop = {
+        item,
+        index,
+        position: index + 1,
+        total: items.length,
+        [alias]: item,
+      };
+      iterationContext.vars = {
+        ...iterationContext.vars,
+        [alias]: item,
+        [`${alias}Index`]: index,
+        [`${alias}Position`]: index + 1,
+      };
+
+      const execution = await this._executeStepList(
+        step.foreach.steps,
+        iterationContext,
+        options,
+        iterationScope,
+      );
+
+      this._mergeContextSteps(context, iterationContext);
+
+      const iterationResult = {
+        index,
+        item,
+        status: execution.failed ? 'failed' : this._summarizeNestedResults(execution.results).success > 0 ? 'success' : 'skipped',
+        steps: execution.results,
+      };
+
+      iterations.push(iterationResult);
+
+      if (execution.failed) {
+        const failed = {
+          name: stepName,
+          qualifiedName,
+          type: 'foreach',
+          status: 'failed',
+          iterations,
+          result: {
+            totalItems: items.length,
+            completedIterations: iterations.length,
+          },
+          error: execution.failed.error,
+          durationMs: Date.now() - startedAt,
+        };
+        context.steps[qualifiedName] = failed;
+        return failed;
+      }
+    }
+
+    const succeededIterations = iterations.filter((entry) => entry.status === 'success').length;
+    const result = {
+      name: stepName,
+      qualifiedName,
+      type: 'foreach',
+      status: succeededIterations > 0 || items.length === 0 ? 'success' : 'skipped',
+      iterations,
+      result: {
+        totalItems: items.length,
+        completedIterations: iterations.length,
+        succeededIterations,
+      },
+      durationMs: Date.now() - startedAt,
+    };
+
+    context.steps[qualifiedName] = result;
+    return result;
+  }
+
+  _cloneContext(context) {
+    return JSON.parse(JSON.stringify(context));
+  }
+
+  _mergeContextSteps(targetContext, sourceContext) {
+    targetContext.steps = {
+      ...targetContext.steps,
+      ...sourceContext.steps,
+    };
+  }
+
+  _countSteps(steps) {
+    return steps.reduce((count, step) => {
+      if (Array.isArray(step.parallel)) {
+        return count + this._countSteps(step.parallel);
+      }
+
+      if (step.foreach && Array.isArray(step.foreach.steps)) {
+        return count + this._countSteps(step.foreach.steps);
+      }
+
+      return count + 1;
+    }, 0);
+  }
+
+  _defaultStepName(step) {
+    if (Array.isArray(step.parallel)) {
+      return 'parallel';
+    }
+
+    if (step.foreach) {
+      return 'foreach';
+    }
+
+    if (step.action === 'wait' || step.wait !== undefined) {
+      return 'wait';
+    }
+
+    if (step.system && step.action) {
+      return `${step.system}.${step.action}`;
+    }
+
+    return 'step';
+  }
+
+  _getStepType(step) {
+    if (Array.isArray(step.parallel)) {
+      return 'parallel';
+    }
+
+    if (step.foreach) {
+      return 'foreach';
+    }
+
+    if (step.action === 'wait' || step.wait !== undefined) {
+      return 'wait';
+    }
+
+    return 'action';
+  }
+
+  _summarizeNestedResults(results) {
+    return results.reduce(
+      (summary, result) => {
+        summary.total += 1;
+        if (result.status === 'success') summary.success += 1;
+        if (result.status === 'failed') summary.failed += 1;
+        if (result.status === 'skipped') summary.skipped += 1;
+        return summary;
+      },
+      { total: 0, success: 0, failed: 0, skipped: 0 },
+    );
   }
 }
 

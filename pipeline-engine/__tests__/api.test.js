@@ -36,6 +36,10 @@ describe('Pipeline Engine', () => {
     const res = await request(app).get('/connectors');
     expect(res.status).toBe(200);
     expect(res.body.connectors).toBeDefined();
+    expect(res.body.connectors.servicenow).toBeDefined();
+    expect(res.body.connectors.jsm).toBeDefined();
+    expect(res.body.connectors.remedy).toBeDefined();
+    expect(res.body.connectors.cyberark).toBeDefined();
   });
 
   // Connector actions
@@ -43,6 +47,24 @@ describe('Pipeline Engine', () => {
     const res = await request(app).get('/connectors/fudo-pam/actions');
     expect(res.status).toBe(200);
     expect(res.body.actions).toBeDefined();
+  });
+
+  test('GET /connectors/servicenow/actions returns actions', async () => {
+    const res = await request(app).get('/connectors/servicenow/actions');
+    expect(res.status).toBe(200);
+    expect(res.body.actions['incidents.create']).toBeDefined();
+  });
+
+  test('GET /connectors/jsm/actions returns actions', async () => {
+    const res = await request(app).get('/connectors/jsm/actions');
+    expect(res.status).toBe(200);
+    expect(res.body.actions['issues.create']).toBeDefined();
+  });
+
+  test('GET /connectors/remedy/actions returns actions', async () => {
+    const res = await request(app).get('/connectors/remedy/actions');
+    expect(res.status).toBe(200);
+    expect(res.body.actions['incidents.list']).toBeDefined();
   });
 
   test('GET /connectors/nonexistent/actions returns 404', async () => {
@@ -113,6 +135,17 @@ describe('Pipeline Engine', () => {
       expect(res.status).toBe(200);
       expect(res.body.pipeline).toBeDefined();
     }
+  });
+
+  test('GET /pipelines includes new v2 templates', async () => {
+    const res = await request(app).get('/pipelines');
+    expect(res.status).toBe(200);
+    const files = res.body.pipelines.map((pipeline) => pipeline.file);
+    expect(files).toContain('cross-itsm-incident.yaml');
+    expect(files).toContain('cmdb-reconciliation.yaml');
+    expect(files).toContain('multi-pam-password-rotation.yaml');
+    expect(files).toContain('azure-ad-pim-jit.yaml');
+    expect(files).toContain('remedy-major-incident-bridge.yaml');
   });
 
   test('GET /pipelines/nonexistent.yaml returns 404', async () => {

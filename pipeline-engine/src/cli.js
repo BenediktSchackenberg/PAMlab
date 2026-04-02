@@ -5,27 +5,11 @@
 
 const path = require('path');
 const PipelineRunner = require('./engine/PipelineRunner');
-const ConnectorRegistry = require('./connectors/ConnectorRegistry');
-const FudoPamConnector = require('./connectors/fudo-pam');
-const Matrix42EsmConnector = require('./connectors/matrix42-esm');
-const ActiveDirectoryConnector = require('./connectors/active-directory');
+const createRegistryFromEnv = require('./connectors/createRegistry');
 
 // --- Registry mit allen Connectors aufbauen ---
 function createRegistry() {
-  const registry = new ConnectorRegistry();
-  registry.register(
-    'fudo-pam',
-    new FudoPamConnector(process.env.FUDO_URL || 'http://localhost:8443'),
-  );
-  registry.register(
-    'matrix42-esm',
-    new Matrix42EsmConnector(process.env.M42_URL || 'http://localhost:8444'),
-  );
-  registry.register(
-    'active-directory',
-    new ActiveDirectoryConnector(process.env.AD_URL || 'http://localhost:8445'),
-  );
-  return registry;
+  return createRegistryFromEnv(process.env);
 }
 
 // --- Variablen aus CLI-String parsen: "user=j.doe,group=Admins" ---
@@ -34,7 +18,26 @@ function parseVars(varsStr) {
   const vars = {};
   for (const pair of varsStr.split(',')) {
     const [key, ...rest] = pair.split('=');
-    if (key) vars[key.trim()] = rest.join('=').trim();
+    if (!key) continue;
+
+    const rawValue = rest.join('=').trim();
+    let parsedValue = rawValue;
+
+    if (rawValue === 'true') parsedValue = true;
+    else if (rawValue === 'false') parsedValue = false;
+    else if (rawValue !== '' && !Number.isNaN(Number(rawValue))) parsedValue = Number(rawValue);
+    else if (
+      (rawValue.startsWith('[') && rawValue.endsWith(']')) ||
+      (rawValue.startsWith('{') && rawValue.endsWith('}'))
+    ) {
+      try {
+        parsedValue = JSON.parse(rawValue);
+      } catch {
+        parsedValue = rawValue;
+      }
+    }
+
+    vars[key.trim()] = parsedValue;
   }
   return vars;
 }
@@ -65,6 +68,10 @@ Umgebungsvariablen:
   FUDO_URL    Fudo PAM API URL    (Standard: http://localhost:8443)
   M42_URL     Matrix42 ESM URL    (Standard: http://localhost:8444)
   AD_URL      Active Directory URL (Standard: http://localhost:8445)
+  SNOW_URL    ServiceNow URL      (Standard: http://localhost:8447)
+  JSM_URL     JSM URL             (Standard: http://localhost:8448)
+  REMEDY_URL  Remedy URL          (Standard: http://localhost:8449)
+  CYBERARK_URL CyberArk URL       (Standard: http://localhost:8450)
 `);
     process.exit(0);
   }
@@ -109,7 +116,7 @@ Umgebungsvariablen:
         process.exit(1);
       }
       const filePath = path.resolve(file);
-      const result = runner.validate(filePath);
+      const result = await runner.validate(filePath);
       if (result.valid) {
         console.log(`✅ Pipeline "${result.name}" ist gültig (${result.steps} Steps)`);
       } else {
@@ -122,7 +129,7 @@ Umgebungsvariablen:
 
     case 'list-pipelines': {
       const pipelinesDir = path.join(__dirname, '../pipelines');
-      const pipelines = runner.listPipelines(pipelinesDir);
+      const pipelines = await runner.listPipelines(pipelinesDir);
       console.log('\n📋 Verfügbare Pipelines:\n');
       pipelines.forEach((p) => {
         console.log(`  📄 ${p.file}`);

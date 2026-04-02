@@ -1,0 +1,70 @@
+name: 'Azure AD PIM JIT Access'
+description: 'Approval-driven just-in-time elevation flow using the Azure AD compatibility connector and downstream PAM systems'
+version: '2.0'
+
+trigger:
+  source: access-governance
+  event: jit-request
+  autoApprove: true
+  autoRevoke: true
+  duration: '4h'
+
+steps:
+  - name: 'Create ServiceNow access request'
+    system: servicenow
+    action: catalog.items.order
+    params:
+      item_id: 'cat-priv-access'
+      requested_for: '{{ vars.user }}'
+      description: 'JIT access request for {{ vars.group }} on {{ vars.server }}'
+
+  - name: 'Create JSM approval request'
+    system: jsm
+    action: issues.create
+    params:
+      fields:
+        project:
+          key: 'ITSM'
+        summary: 'Approve JIT access for {{ vars.user }}'
+        description: 'Temporary privileged access for group {{ vars.group }}.'
+        issuetype:
+          name: 'Service Request'
+        priority:
+          name: 'High'
+
+  - name: 'Grant time-bound group membership'
+    condition: '{{ trigger.autoApprove }}'
+    system: azure-ad
+    action: groups.add-member-timed
+    params:
+      name: '{{ vars.group }}'
+      member: '{{ vars.user }}'
+      ttl: '{{ trigger.duration }}'
+
+  - name: 'Create PAM access request'
+    condition: '{{ trigger.autoApprove }}'
+    system: fudo-pam
+    action: access-requests.create
+    params:
+      user: '{{ vars.user }}'
+      target: '{{ vars.server }}'
+      duration: '{{ trigger.duration }}'
+
+  - name: 'Wait for JIT window'
+    wait: '{{ trigger.duration }}'
+
+  - name: 'Revoke time-bound group membership'
+    condition: '{{ trigger.autoRevoke }}'
+    system: azure-ad
+    action: groups.remove-member
+    params:
+      name: '{{ vars.group }}'
+      member: '{{ vars.user }}'
+
+rollback:
+  - name: 'Revoke Azure AD membership'
+    system: azure-ad
+    action: groups.remove-member
+    params:
+      name: '{{ vars.group }}'
+      member: '{{ vars.user }}'

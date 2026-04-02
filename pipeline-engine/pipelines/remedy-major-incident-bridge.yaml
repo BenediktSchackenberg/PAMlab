@@ -1,0 +1,76 @@
+name: 'Remedy Major Incident Bridge'
+description: 'Coordinate a major incident from Remedy into ServiceNow and JSM with shared evidence handling'
+version: '2.0'
+
+trigger:
+  source: remedy
+  event: major-incident
+  severity: critical
+  evidence:
+    - 'Privilege escalation attempt detected'
+    - 'Multiple failed login attempts recorded'
+
+steps:
+  - name: 'Create Remedy incident'
+    system: remedy
+    action: entry.create
+    params:
+      formName: 'HPD:Help Desk'
+      values:
+        Incident Number: 'INC-MAJOR-{{ vars.correlationId }}'
+        Description: 'Major PAM incident for {{ vars.user }}'
+        Status: 'Assigned'
+        Priority: 'Critical'
+        Assigned Group: 'Security'
+
+  - name: 'Open peer incidents'
+    parallel:
+      - name: 'Create ServiceNow peer incident'
+        system: servicenow
+        action: incidents.create
+        params:
+          short_description: 'Major PAM incident for {{ vars.user }}'
+          description: 'Mirrored from Remedy correlation {{ vars.correlationId }}'
+          priority: 1
+          impact: 1
+          urgency: 1
+
+      - name: 'Create JSM peer issue'
+        system: jsm
+        action: issues.create
+        params:
+          fields:
+            project:
+              key: 'SEC'
+            summary: 'Major PAM incident for {{ vars.user }}'
+            description: 'Mirrored from Remedy correlation {{ vars.correlationId }}'
+            issuetype:
+              name: 'Incident'
+            priority:
+              name: 'Critical'
+
+  - name: 'Attach evidence to Remedy incident'
+    foreach:
+      items: '{{ trigger.evidence }}'
+      as: note
+      steps:
+        - name: 'Append evidence note'
+          system: remedy
+          action: incidents.worknotes
+          params:
+            id: '{{ steps.Create Remedy incident.result.values.Incident Number }}'
+            submitter: 'pipeline-engine'
+            note: '{{ vars.note }}'
+
+  - name: 'Resolve ServiceNow peer incident'
+    condition:
+      left: '{{ vars.autoResolveSnow }}'
+      equals: true
+    system: servicenow
+    action: incidents.resolve
+    params:
+      sys_id: '{{ steps.Open peer incidents / Create ServiceNow peer incident.result.result.sys_id }}'
+      close_notes: 'Resolved from Remedy major incident bridge'
+      close_code: 'Solved (Permanently)'
+
+rollback: []

@@ -1,0 +1,98 @@
+name: 'Cross-ITSM Incident Bridge'
+description: 'Create and coordinate security incidents across ServiceNow, JSM and Remedy from a PAM trigger'
+version: '2.0'
+
+trigger:
+  source: fudo-pam
+  event: privileged-session-alert
+  severity: high
+
+steps:
+  - name: 'Collect live session context'
+    system: fudo-pam
+    action: session-control.live
+
+  - name: 'Create incident records across ITSM tools'
+    parallel:
+      - name: 'Create ServiceNow incident'
+        system: servicenow
+        action: incidents.create
+        params:
+          short_description: 'PAM alert for {{ vars.user }} on {{ vars.server }}'
+          description: 'Session {{ vars.sessionId }} triggered a privileged access alert in Fudo PAM.'
+          priority: 1
+          impact: 1
+          urgency: 1
+
+      - name: 'Create JSM issue'
+        system: jsm
+        action: issues.create
+        params:
+          fields:
+            project:
+              key: 'SEC'
+            summary: 'PAM alert for {{ vars.user }} on {{ vars.server }}'
+            description: 'Security workflow raised from session {{ vars.sessionId }}.'
+            issuetype:
+              name: 'Incident'
+            priority:
+              name: 'Critical'
+
+      - name: 'Create Remedy incident'
+        system: remedy
+        action: entry.create
+        params:
+          formName: 'HPD:Help Desk'
+          values:
+            Incident Number: 'INC-PAM-{{ vars.sessionId }}'
+            Description: 'PAM alert for {{ vars.user }} on {{ vars.server }}'
+            Status: 'New'
+            Priority: 'Critical'
+            Assigned Group: 'Security'
+
+  - name: 'Contain access'
+    condition:
+      any:
+        - left: '{{ trigger.severity }}'
+          equals: 'high'
+        - truthy: '{{ vars.forceContainment }}'
+    parallel:
+      - name: 'Block PAM user'
+        system: fudo-pam
+        action: users.block
+        params:
+          id: '{{ vars.fudoUserId }}'
+
+      - name: 'Disable directory account'
+        system: active-directory
+        action: users.update
+        params:
+          sam: '{{ vars.user }}'
+          enabled: false
+
+  - name: 'Add shared work notes'
+    foreach:
+      items: '{{ vars.evidence }}'
+      as: evidence
+      steps:
+        - name: 'Append Remedy work note'
+          system: remedy
+          action: incidents.worknotes
+          params:
+            id: '{{ steps.Create incident records across ITSM tools / Create Remedy incident.result.values.Incident Number }}'
+            submitter: 'pipeline-engine'
+            note: '{{ vars.evidence }}'
+
+rollback:
+  - name: 'Unblock PAM user'
+    system: fudo-pam
+    action: users.unblock
+    params:
+      id: '{{ vars.fudoUserId }}'
+
+  - name: 'Re-enable directory account'
+    system: active-directory
+    action: users.update
+    params:
+      sam: '{{ vars.user }}'
+      enabled: true

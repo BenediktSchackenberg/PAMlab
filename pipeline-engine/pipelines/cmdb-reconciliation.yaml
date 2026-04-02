@@ -1,0 +1,68 @@
+name: 'CMDB Reconciliation'
+description: 'Compare CI coverage across ServiceNow, JSM Assets and Remedy for a shared infrastructure set'
+version: '2.0'
+
+trigger:
+  source: scheduled
+  event: cmdb-reconciliation
+  cis:
+    - 'DC01'
+    - 'DB-PROD'
+    - 'APP-ERP'
+    - 'FILE-SRV01'
+    - 'FUDO-PAM'
+
+steps:
+  - name: 'Fetch current inventories'
+    parallel:
+      - name: 'List ServiceNow servers'
+        system: servicenow
+        action: cmdb.servers.list
+        params:
+          sysparm_limit: 100
+
+      - name: 'List JSM schemas'
+        system: jsm
+        action: assets.schemas.list
+
+      - name: 'List Remedy assets'
+        system: remedy
+        action: assets.list
+
+  - name: 'Inspect each CI'
+    foreach:
+      items: '{{ trigger.cis }}'
+      as: ci
+      steps:
+        - name: 'Check ServiceNow record'
+          system: servicenow
+          action: table.list
+          params:
+            tableName: 'cmdb_ci_server'
+            sysparm_query: 'name={{ vars.ci }}'
+            sysparm_limit: 1
+
+        - name: 'Check JSM asset object'
+          system: jsm
+          action: assets.objects.search
+          params:
+            aql: 'Name = "{{ vars.ci }}"'
+
+        - name: 'Check Remedy asset'
+          system: remedy
+          action: assets.get
+          params:
+            id: '{{ vars.ci }}'
+
+        - name: 'Open reconciliation ticket'
+          condition:
+            truthy: '{{ vars.openTicketOnDrift }}'
+          system: matrix42-esm
+          action: tickets.create
+          params:
+            title: 'CMDB reconciliation review for {{ vars.ci }}'
+            description: 'Verify CI {{ vars.ci }} across ServiceNow, JSM and Remedy outputs.'
+            category: 'cmdb-reconciliation'
+            priority: 'medium'
+
+rollback: []

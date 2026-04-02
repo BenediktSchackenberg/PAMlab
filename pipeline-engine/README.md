@@ -1,146 +1,244 @@
-# 🔗 PAMlab Pipeline Engine
+# PAMlab Pipeline Engine
 
-Die Pipeline Engine ist das Herzstück von PAMlab — sie verbindet die Mock-APIs zu automatisierten Workflows.
+The Pipeline Engine orchestrates PAMlab mock systems with YAML-defined workflows.
 
-## Überblick
+## What is new in v2
 
-Die Engine ermöglicht es, **YAML-basierte Pipelines** zu definieren, die Aktionen über mehrere Systeme hinweg orchestrieren:
+- 7+ available connector IDs across PAM, ITSM and directory flows
+- conditional execution via `condition:`
+- parallel fan-out via `parallel:`
+- loop support via `foreach:`
+- new cross-system pipeline templates for ServiceNow, JSM, Remedy and CyberArk scenarios
 
-- **Fudo PAM** → Session-Management, Passwort-Rotation, Zugriffskontrolle
-- **Matrix42 ESM** → Tickets, Provisionierung, Genehmigungen
-- **Active Directory** → Benutzer, Gruppen, OUs
+## Available connectors
 
-## Schnellstart
+Canonical connector IDs:
+
+- `fudo-pam`
+- `matrix42-esm`
+- `active-directory`
+- `servicenow`
+- `jsm`
+- `remedy`
+- `cyberark`
+
+Compatibility aliases:
+
+- `fudo`
+- `matrix42`
+- `ad`
+- `azure-ad`
+- `service-now`
+- `snow`
+- `jira`
+
+`azure-ad` currently maps to the Active Directory mock until a dedicated Azure AD mock lands.
+
+## Quick start
 
 ### Docker
 
 ```bash
-# Im PAMlab-Root-Verzeichnis
 docker-compose up
 ```
 
-### Manuell
+### Local
 
 ```bash
 cd pipeline-engine
 npm install
 npm start
-# → API läuft auf http://localhost:8446
 ```
 
-## CLI-Nutzung
+The API is available at `http://localhost:8446`.
+
+## CLI
 
 ```bash
-# Pipeline ausführen
-node src/cli.js run pipelines/onboarding-with-approval.yaml \
-  --vars user=j.doe,group=Server-Admins
+# Run a pipeline
+node src/cli.js run pipelines/cross-itsm-incident.yaml --vars user=j.doe,server=DB-PROD,sessionId=s-1001,fudoUserId=42
 
-# Nur simulieren (Dry-Run)
-node src/cli.js dry-run pipelines/jit-temporary-access.yaml \
-  --vars user=m.mueller,group=RDP-Admins,duration=4h
+# Dry-run a loop-based pipeline with JSON vars
+node src/cli.js dry-run pipelines/multi-pam-password-rotation.yaml --vars targets=["srv-1","srv-2"]
 
-# Pipeline validieren
-node src/cli.js validate pipelines/offboarding-emergency.yaml
+# Validate a pipeline
+node src/cli.js validate pipelines/cmdb-reconciliation.yaml
 
-# Alle Pipelines auflisten
+# List templates
 node src/cli.js list-pipelines
 
-# Connector-Actions anzeigen
-node src/cli.js list-actions fudo-pam
-node src/cli.js list-actions active-directory
-node src/cli.js list-actions matrix42-esm
+# Inspect connector actions
+node src/cli.js list-actions servicenow
+node src/cli.js list-actions jsm
+node src/cli.js list-actions remedy
 ```
 
-## REST API (Port 8446)
+Supported environment variables:
 
-| Methode | Endpoint | Beschreibung |
-|---------|----------|-------------|
-| `GET` | `/health` | Health Check |
-| `GET` | `/pipelines` | Verfügbare Pipelines auflisten |
-| `GET` | `/pipelines/:name` | Pipeline-Definition abrufen |
-| `POST` | `/pipelines/validate` | Pipeline validieren |
-| `POST` | `/pipelines/run` | Pipeline ausführen |
-| `GET` | `/pipelines/runs` | Letzte Runs auflisten |
-| `GET` | `/pipelines/runs/:id` | Run-Details mit Step-Ergebnissen |
-| `GET` | `/connectors` | Registrierte Connectors |
-| `GET` | `/connectors/:name/actions` | Actions eines Connectors |
+- `PORT`
+- `FUDO_URL`
+- `M42_URL`
+- `AD_URL`
+- `SNOW_URL`
+- `JSM_URL`
+- `REMEDY_URL`
+- `CYBERARK_URL`
 
-### Beispiel: Pipeline per API ausführen
+## REST API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Health check |
+| `GET` | `/pipelines` | List pipeline templates |
+| `GET` | `/pipelines/:name` | Fetch a pipeline definition |
+| `POST` | `/pipelines/validate` | Validate inline YAML or a file |
+| `POST` | `/pipelines/run` | Execute a pipeline |
+| `GET` | `/pipelines/runs` | List recent runs |
+| `GET` | `/pipelines/runs/:id` | Fetch a single run |
+| `GET` | `/connectors` | List registered connectors |
+| `GET` | `/connectors/:name/actions` | List actions for one connector |
+
+### Example run request
 
 ```bash
 curl -X POST http://localhost:8446/pipelines/run \
   -H "Content-Type: application/json" \
   -d '{
-    "file": "onboarding-with-approval.yaml",
-    "vars": { "user": "j.doe", "group": "Server-Admins" }
+    "file": "cross-itsm-incident.yaml",
+    "dryRun": true,
+    "vars": {
+      "user": "j.doe",
+      "server": "DB-PROD",
+      "sessionId": "s-1001",
+      "fudoUserId": 42,
+      "evidence": ["multiple failed sudo attempts", "unexpected session recording gap"]
+    }
   }'
 ```
 
-## Pipeline-Templates
+## YAML format
 
-| Template | Beschreibung |
-|----------|-------------|
-| `onboarding-with-approval.yaml` | M42 Ticket → AD Benutzer → Gruppe → Fudo Sync → Audit |
-| `offboarding-emergency.yaml` | Fudo sperren → AD deaktivieren → M42 Incident |
-| `jit-temporary-access.yaml` | Zeitbegrenzter Zugriff mit Auto-Widerruf |
-| `password-rotation-campaign.yaml` | Passwort-Rotation durchführen und dokumentieren |
-| `security-incident-response.yaml` | Sessions beenden → Sperren → Incident-Tickets |
-
-## Pipeline-Format (YAML)
+### Simple action step
 
 ```yaml
-name: "Meine Pipeline"
-description: "Beschreibung"
-
-trigger:
-  source: matrix42
-  event: access-request.created
-
 steps:
-  - name: "Benutzer anlegen"
-    system: active-directory
-    action: users.create
+  - name: 'Create ServiceNow incident'
+    system: servicenow
+    action: incidents.create
     params:
-      sAMAccountName: "{{ trigger.user }}"
-      mail: "{{ trigger.user }}@corp.local"
-
-  - name: "Zur Gruppe hinzufügen"
-    system: active-directory
-    action: groups.add-member
-    params:
-      name: "{{ vars.group }}"
-      member: "{{ trigger.user }}"
-
-rollback:
-  - system: active-directory
-    action: groups.remove-member
-    params:
-      name: "{{ vars.group }}"
-      member: "{{ trigger.user }}"
+      short_description: 'PAM alert for {{ vars.user }}'
+      priority: 1
 ```
 
-### Variablen-Interpolation
+### Conditional step
 
-- `{{ trigger.user }}` — Trigger-Daten / CLI-Variablen
-- `{{ vars.group }}` — Explizite Variablen
-- `{{ steps.Benutzer anlegen.result.id }}` — Ergebnisse vorheriger Steps
+```yaml
+steps:
+  - name: 'Disable account'
+    condition:
+      left: '{{ vars.forceContainment }}'
+      equals: true
+    system: active-directory
+    action: users.update
+    params:
+      sam: '{{ vars.user }}'
+      enabled: false
+```
 
-## Connectors
+Supported condition forms:
 
-### Fudo PAM (`fudo-pam`)
-Authentifizierung, Benutzer, Gruppen, Sessions, Zugriffskontrolle, Passwort-Policies, AD-Sync
+- boolean literal: `condition: true`
+- truthy check: `condition: '{{ trigger.autoApprove }}'`
+- comparison object: `left` with `equals`, `notEquals`, `gt`, `gte`, `lt`, `lte`
+- grouped conditions: `all`, `any`, `not`
+- value presence: `exists`, `truthy`, `falsy`, `contains`, `in`
 
-### Matrix42 ESM (`matrix42-esm`)
-Tickets, Assets, Benutzer, Software, Provisionierung, Genehmigungen, Webhooks, Berichte
+### Parallel block
 
-### Active Directory (`active-directory`)
-Benutzer, Gruppen (inkl. zeitbegrenzt), OUs, Computer, Bulk-Operationen
+```yaml
+steps:
+  - name: 'Create peer incidents'
+    parallel:
+      - name: 'ServiceNow'
+        system: servicenow
+        action: incidents.create
+      - name: 'JSM'
+        system: jsm
+        action: issues.create
+```
 
-## Umgebungsvariablen
+### Foreach loop
 
-| Variable | Standard | Beschreibung |
-|----------|----------|-------------|
-| `PORT` | `8446` | API-Port |
-| `FUDO_URL` | `http://localhost:8443` | Fudo PAM API URL |
-| `M42_URL` | `http://localhost:8444` | Matrix42 ESM API URL |
-| `AD_URL` | `http://localhost:8445` | Active Directory API URL |
+```yaml
+steps:
+  - name: 'Inspect each CI'
+    foreach:
+      items: '{{ trigger.cis }}'
+      as: ci
+      steps:
+        - name: 'Lookup ServiceNow CI'
+          system: servicenow
+          action: table.list
+          params:
+            tableName: 'cmdb_ci_server'
+            sysparm_query: 'name={{ vars.ci }}'
+```
+
+Loop variables are available under:
+
+- `{{ vars.<alias> }}`
+- `{{ loop.item }}`
+- `{{ loop.<alias> }}`
+- `{{ loop.index }}`
+- `{{ loop.position }}`
+- `{{ loop.total }}`
+
+### Variable resolution
+
+You can reference:
+
+- `{{ trigger.user }}`
+- `{{ vars.group }}`
+- `{{ steps.Create ServiceNow incident.result.result.number }}`
+- `{{ steps.Open peer incidents / Create ServiceNow peer incident.result.result.sys_id }}`
+
+Whole-value templates keep arrays and objects intact, which is important for `foreach.items`.
+
+## Included templates
+
+Existing templates:
+
+- `onboarding-with-approval.yaml`
+- `offboarding-emergency.yaml`
+- `jit-temporary-access.yaml`
+- `password-rotation-campaign.yaml`
+- `security-incident-response.yaml`
+
+New v2 templates:
+
+- `cross-itsm-incident.yaml`
+- `cmdb-reconciliation.yaml`
+- `multi-pam-password-rotation.yaml`
+- `azure-ad-pim-jit.yaml`
+- `remedy-major-incident-bridge.yaml`
+
+## Notes on execution
+
+- top-level run output keeps step order intact
+- nested steps are tracked with qualified names such as `Parent Step / Child Step`
+- parallel branches run concurrently
+- `foreach` iterations run sequentially per item
+- rollback remains available via the `rollback:` array
+
+## Tests
+
+```bash
+npm test
+```
+
+The test suite covers:
+
+- API endpoints
+- connector registration
+- validation of the new templates
+- `condition`, `parallel` and `foreach` runner behavior

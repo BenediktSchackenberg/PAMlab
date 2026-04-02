@@ -9,10 +9,7 @@ const fs = require('fs');
 const yaml = require('js-yaml');
 
 const PipelineRunner = require('./engine/PipelineRunner');
-const ConnectorRegistry = require('./connectors/ConnectorRegistry');
-const FudoPamConnector = require('./connectors/fudo-pam');
-const Matrix42EsmConnector = require('./connectors/matrix42-esm');
-const ActiveDirectoryConnector = require('./connectors/active-directory');
+const createRegistry = require('./connectors/createRegistry');
 
 const app = express();
 const PORT = process.env.PORT || 8446;
@@ -24,19 +21,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- Registry ---
-const registry = new ConnectorRegistry();
-registry.register(
-  'fudo-pam',
-  new FudoPamConnector(process.env.FUDO_URL || 'http://localhost:8443'),
-);
-registry.register(
-  'matrix42-esm',
-  new Matrix42EsmConnector(process.env.M42_URL || 'http://localhost:8444'),
-);
-registry.register(
-  'active-directory',
-  new ActiveDirectoryConnector(process.env.AD_URL || 'http://localhost:8445'),
-);
+const registry = createRegistry(process.env);
 
 const runner = new PipelineRunner(registry);
 
