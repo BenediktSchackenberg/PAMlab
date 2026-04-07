@@ -26,7 +26,7 @@
 
 ## ⚡ TL;DR
 
-**PAMlab** = Mock APIs for 6 enterprise systems (AD, Fudo PAM, Matrix42, ServiceNow, JSM, Remedy) + a pipeline engine + a web IDE.
+**PAMlab** = Mock APIs for 8 enterprise systems (AD, Entra ID, Fudo PAM, Matrix42, ServiceNow, JSM, Remedy, CyberArk) + a pipeline engine + a web IDE.
 
 ```bash
 git clone https://github.com/BenediktSchackenberg/PAMlab.git && cd PAMlab
@@ -53,7 +53,7 @@ cd PAMlab
 docker-compose up
 ```
 
-This starts **all services** (7 mock APIs + pipeline engine + web IDE). Open [http://localhost:3000](http://localhost:3000) for PAMlab Studio.
+This starts **all services** (8 mock APIs + pipeline engine + web IDE). Open [http://localhost:3000](http://localhost:3000) for PAMlab Studio.
 
 ### Option 2: Manual (Run Each Service Individually)
 
@@ -70,19 +70,25 @@ cd matrix42-mock-api && npm install && npm start
 # Terminal 3: Active Directory Mock (port 8445)
 cd ad-mock-api && npm install && npm start
 
-# Terminal 4: ServiceNow Mock (port 8447)
+# Terminal 4: Microsoft Entra ID Mock (port 8452)
+cd azure-ad-mock-api && npm install && npm start
+
+# Terminal 5: ServiceNow Mock (port 8447)
 cd servicenow-mock-api && npm install && npm start
 
-# Terminal 5: JSM Mock (port 8448)
+# Terminal 6: JSM Mock (port 8448)
 cd jsm-mock-api && npm install && npm start
 
-# Terminal 6: Remedy Mock (port 8449)
+# Terminal 7: Remedy Mock (port 8449)
 cd remedy-mock-api && npm install && npm start
 
-# Terminal 7: Pipeline Engine (port 8446)
+# Terminal 8: CyberArk Mock (port 8450)
+cd cyberark-mock-api && npm install && npm start
+
+# Terminal 9: Pipeline Engine (port 8446)
 cd pipeline-engine && npm install && npm start
 
-# Terminal 8: PAMlab Studio (port 3000)
+# Terminal 10: PAMlab Studio (port 3000)
 cd pamlab-studio && npm install && npm run dev
 ```
 
@@ -99,6 +105,9 @@ curl -s http://localhost:8444/health | jq .
 curl -s http://localhost:8445/health | jq .
 # → {"status":"ok","service":"ad-mock-api",...}
 
+curl -s http://localhost:8452/health | jq .
+# -> {"status":"ok","service":"azure-ad-mock-api",...}
+
 curl -s http://localhost:8447/health | jq .
 # → {"status":"ok","service":"servicenow-mock-api",...}
 
@@ -107,6 +116,9 @@ curl -s http://localhost:8448/health | jq .
 
 curl -s http://localhost:8449/health | jq .
 # → {"status":"ok","service":"remedy-mock-api",...}
+
+curl -s http://localhost:8450/health | jq .
+# -> {"status":"ok","service":"cyberark-mock-api",...}
 
 # 🔐 Fudo PAM — Login
 curl -X POST http://localhost:8443/api/v2/auth/login \
@@ -125,6 +137,17 @@ curl -X POST http://localhost:8445/api/ad/auth/bind \
   -H "Content-Type: application/json" \
   -d '{"dn":"CN=admin","password":"admin"}'
 # → 200 {"token":"<uuid>","dn":"CN=admin,...","message":"Bind successful"}
+
+# Microsoft Entra ID - Get OAuth token
+curl -X POST http://localhost:8452/oauth2/v2.0/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type":"client_credentials",
+    "client_id":"11111111-2222-3333-4444-555555555551",
+    "client_secret":"PAMlab-Secret-1!",
+    "scope":"https://graph.microsoft.com/.default"
+  }'
+# -> 200 {"token_type":"Bearer","access_token":"entra-...","expires_in":3600}
 
 # ❄️ ServiceNow — List incidents
 curl -s http://localhost:8447/api/now/table/incident \
@@ -145,6 +168,8 @@ curl -s "http://localhost:8449/api/arsys/v1/entry/HPD%3AHelp%20Desk" \
 ```
 
 > **Default API token for all services:** `pamlab-dev-token`
+>
+> **Microsoft Entra ID default OAuth client:** `11111111-2222-3333-4444-555555555551` / `PAMlab-Secret-1!`
 
 
 ---
@@ -186,17 +211,18 @@ That's it — the core onboarding path works. The [full workflow](#-your-first-w
 
 ## 📋 Architecture Overview
 
-PAMlab is a **developer sandbox** for building and testing enterprise access management integrations. It provides **six mock APIs** (plus an optional CyberArk mock), a pipeline engine, and a web-based IDE:
+PAMlab is a **developer sandbox** for building and testing enterprise access management integrations. It provides **eight mock APIs**, a pipeline engine, and a web-based IDE:
 
 | System | What it simulates | Port | Endpoints |
 |--------|-------------------|------|-----------|
 | 🔐 **Fudo PAM** | Privileged Access Management — session recording, password rotation, JIT access | `8443` | 70+ |
 | 📋 **Matrix42 ESM** | Enterprise Service Management — asset management, ticketing, approval workflows | `8444` | 88 |
 | 🏢 **Active Directory** | Directory services — users, groups, OUs, computer objects | `8445` | 25+ |
+| **Microsoft Entra ID** | Cloud identity — OAuth, users, groups, service principals, Conditional Access, PIM | `8452` | 20+ |
 | ❄️ **ServiceNow ITSM** | ITSM — incidents, changes, CMDB, service catalog, events | `8447` | 30+ |
 | 🎫 **Jira Service Mgmt** | ITSM — issues, JQL search, workflow transitions, approvals, assets, SLA tracking | `8448` | 30+ |
 | 🏥 **BMC Remedy/Helix** | ITSM — incidents, changes, CMDB, work orders, SLA, Remedy REST API | `8449` | 30+ |
-| 🔒 **CyberArk PAS** *(optional)* | Privileged credential vault — safes, accounts, credential rotation | `8450` | 20+ |
+| 🔒 **CyberArk PAS** | Privileged credential vault — safes, accounts, credential rotation | `8450` | 20+ |
 | 🔗 **Pipeline Engine** | Modular action chain builder — orchestrates workflows across all systems | `8446` | — |
 | 🖥️ **PAMlab Studio** | Web-based IDE for building and testing integration scripts | `3000` | — |
 
@@ -212,7 +238,7 @@ But you can't test against production. Setting up dev instances of all these sys
 
 ```bash
 docker-compose up
-# → 6 mock APIs + pipeline engine + web IDE running in seconds
+# -> 8 mock APIs + pipeline engine + web IDE running in seconds
 # → Build your integration scripts
 # → Test the complete workflow end-to-end
 # → Adapt scripts for production (swap base URLs and credentials)
@@ -652,6 +678,62 @@ Simulates Active Directory with a REST interface — **25+ endpoints**:
 
 ---
 
+### Microsoft Entra ID API (Port 8452)
+
+Simulates a focused subset of the [Microsoft Graph](https://learn.microsoft.com/graph/overview) identity APIs for cloud identity, Conditional Access, and Privileged Identity Management (PIM):
+
+<details>
+<summary><b>OAuth and Identity Context</b></summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/oauth2/v2.0/token` | OAuth 2.0 token issuance (client credentials or password grant) |
+| GET | `/v1.0/me` | Resolve current application or user identity from the access token |
+
+**Default client credentials**
+- `client_id`: `11111111-2222-3333-4444-555555555551`
+- `client_secret`: `PAMlab-Secret-1!`
+</details>
+
+<details>
+<summary><b>Directory Objects</b> - Users, groups, service principals</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/v1.0/users` | List or create Entra users |
+| GET/PATCH/DELETE | `/v1.0/users/{id}` | User CRUD |
+| GET | `/v1.0/users/{id}/memberOf` | Group memberships for a user |
+| POST | `/v1.0/users/{id}/revokeSignInSessions` | Revoke active sessions |
+| GET/POST | `/v1.0/groups` | List or create groups |
+| GET/PATCH/DELETE | `/v1.0/groups/{id}` | Group CRUD |
+| GET/POST | `/v1.0/groups/{id}/members` | List or add group members |
+| DELETE | `/v1.0/groups/{id}/members/{memberId}` | Remove member from group |
+| GET/POST | `/v1.0/servicePrincipals` | List or create service principals |
+| GET | `/v1.0/servicePrincipals/{id}` | Get service principal |
+
+**Seed data**
+- Hybrid users aligned with the AD mock: `admin`, `j.doe`, `a.smith`, `b.wilson`, `c.jones`
+- Cloud groups: `Cloud-Admins`, `Azure-Contributors`, `PIM-Eligible`
+- Service principals: `svc-pam-integration`, `svc-fudo-sync`
+</details>
+
+<details>
+<summary><b>Conditional Access and PIM</b> - Cloud governance and JIT admin</summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET/POST | `/v1.0/identity/conditionalAccess/policies` | List or create Conditional Access policies |
+| GET/PATCH/DELETE | `/v1.0/identity/conditionalAccess/policies/{id}` | Policy CRUD |
+| GET | `/v1.0/roleManagement/directory/roleDefinitions` | List available directory roles |
+| GET | `/v1.0/roleManagement/directory/roleEligibilityScheduleRequests` | List seeded PIM eligibilities |
+| GET | `/v1.0/roleManagement/directory/roleAssignments` | List active role assignments |
+| POST | `/v1.0/roleManagement/directory/roleAssignmentScheduleRequests` | Activate an eligible role (JIT / self-activate) |
+
+The mock ships with seeded Conditional Access policies and PIM eligibilities so you can test MFA enforcement, legacy auth blocking, and just-in-time elevation flows locally.
+</details>
+
+---
+
 ### ❄️ ServiceNow ITSM API (Port 8447)
 
 Simulates the [ServiceNow](https://www.servicenow.com/) Table API and ITSM modules — **30+ endpoints**:
@@ -985,13 +1067,13 @@ First-time users see a guided welcome screen with quick-start options:
 
 ### 📊 Live Dashboard
 Real-time overview of your PAM environment:
-- **Health Monitoring** — all 6 APIs at a glance (green/red status, response times)
+- **Health Monitoring** — all configured APIs at a glance (green/red status, response times)
 - **Live Stats** — Users, Servers, Groups, Active Sessions, Pending Requests (fetched from Fudo API)
 - **Quick Actions** — one-click to run Onboarding Demo, Emergency Revoke, or build a custom workflow
 - **🔄 Reset Mock Data** — restore all APIs to default state with one click
 
 ### 🔧 Workflow Builder
-Visual workflow builder with **5 pre-built templates**:
+Visual workflow builder with pre-built templates for onboarding, JIT access, offboarding, emergency revoke, and cross-system governance flows:
 
 | Template | Systems | Steps | What it does |
 |----------|---------|-------|-------------|
@@ -1019,7 +1101,7 @@ Full VS Code-quality editor with PowerShell syntax highlighting:
 - **Inline Results** — each step shows status code, response time, and JSON response preview
 
 ### 🔍 API Explorer
-Browse **280+ endpoints** across all 6 systems, try them interactively.
+Browse the available endpoints across all configured systems, including Microsoft Entra ID, and try them interactively.
 
 ### ⚡ Event Stream
 Real-time Fudo PAM events via Server-Sent Events.
@@ -1040,9 +1122,11 @@ All workflow runs are saved automatically:
 | Fudo PAM | API Token |
 | Matrix42 ESM | API Key |
 | Active Directory | LDAP Bind (DN + Password) |
+| Microsoft Entra ID | OAuth2 Client Credentials |
 | ServiceNow | OAuth2 (Client ID/Secret) |
 | Jira Service Mgmt | API Token |
 | BMC Remedy | Basic Auth |
+| CyberArk PAS | API Token / Vault credentials |
 
 - **Test Connection** per system
 - **Export/Import** config as JSON (passwords masked)
@@ -1077,7 +1161,7 @@ All workflow runs are saved automatically:
 | Remedy Incident from PAM | Fudo, Remedy | PAM anomaly → Remedy incident → work notes → SLA check |
 | Remedy Change Workflow | Remedy, Fudo, AD | Change request → CAB approval → implement → complete |
 | Remedy CMDB Asset Audit | Remedy, SNOW, JSM | Cross-ITSM CMDB comparison & drift detection |
-| Audit Report | **All 6 systems** | Comprehensive compliance report |
+| Audit Report | **All configured systems** | Comprehensive compliance report |
 
 ---
 
@@ -1097,6 +1181,7 @@ Ready-to-use scripts in `examples/powershell/`:
 | `08-ServiceNow-Integration.ps1` | Incidents, changes, CMDB sync | SNOW, Fudo, AD |
 | `09-JSM-Integration.ps1` | JQL search, approvals, assets, SLA | JSM, Fudo, AD |
 | `10-Remedy-Integration.ps1` | Incidents, changes, CMDB, SLA, work orders | Remedy, Fudo, AD |
+| `11-Entra-PIM-Activation.ps1` | OAuth, PIM activation, session revoke | Entra ID, AD, Matrix42, Fudo |
 
 ### Usage
 
@@ -1150,6 +1235,12 @@ curl -X POST http://localhost:8446/pipelines/run \
 | `jit-temporary-access.yaml` | Timed group membership with auto-revoke |
 | `password-rotation-campaign.yaml` | Policy rotation + compliance report |
 | `security-incident-response.yaml` | Terminate sessions → block → incidents |
+| `cross-itsm-incident.yaml` | Create and reconcile incidents across ServiceNow, JSM, and Remedy |
+| `cmdb-reconciliation.yaml` | Compare and reconcile CMDB data across ITSM systems |
+| `multi-pam-password-rotation.yaml` | Coordinate rotation across Fudo, CyberArk, and downstream systems |
+| `azure-ad-pim-jit.yaml` | Entra ID role activation with PIM and downstream access checks |
+| `entra-pim-activation.yaml` | Focused Entra activation flow for cloud admin access |
+| `remedy-major-incident-bridge.yaml` | Bridge major-incident handling between Remedy and other ITSM systems |
 
 ### Key Features
 
@@ -1157,11 +1248,12 @@ curl -X POST http://localhost:8446/pipelines/run \
 |---------|-------------|
 | ⏰ **Timed Access** | Grant access for 4h, 8h, 30d — auto-revokes when expired |
 | 🔄 **Rollback** | If any step fails, all previous steps are automatically undone |
-| 🧩 **6 Connectors** | Fudo PAM, Matrix42, AD, ServiceNow, JSM, Remedy |
+| Connector Registry | Fudo PAM, Matrix42, AD, Entra ID, CyberArk, ServiceNow, JSM, Remedy |
+| Pipeline Engine v2 | Conditions, parallel branches, foreach loops, and nested orchestration |
 | 📋 **YAML Templates** | Pre-built workflows for common scenarios |
 | 🐛 **Step-by-Step Debug** | Pause after each step, inspect variables, continue |
 | 🏃 **Dry-run Mode** | Validate without executing |
-| 🔀 **Any Combination** | Matrix42→AD→Fudo, JSM→AD→Fudo, SNOW→AD→Fudo... |
+| Any Combination | Matrix42->AD->Fudo, JSM->Entra->CyberArk, SNOW->AD->Fudo, Remedy->JSM->ServiceNow... |
 
 ### Mix and Match Any System
 
@@ -1234,10 +1326,10 @@ PAMlab/
 ├── pipeline-engine/            # 🔗 Pipeline Engine (YAML workflows)
 │   ├── src/
 │   │   ├── engine/             #    PipelineRunner, StepExecutor, Rollback
-│   │   ├── connectors/         #    Fudo, Matrix42, AD, SNOW, JSM, Remedy connectors
+│   │   ├── connectors/         #    Fudo, Matrix42, AD, Entra, CyberArk, SNOW, JSM, Remedy
 │   │   ├── api.js              #    REST API (port 8446)
 │   │   └── cli.js              #    CLI runner
-│   ├── pipelines/              #    5 YAML pipeline templates
+│   ├── pipelines/              #    YAML templates for v1 + v2 orchestration
 │   ├── Dockerfile
 │   └── package.json
 │
@@ -1249,12 +1341,12 @@ PAMlab/
 │   └── Dockerfile
 │
 ├── examples/
-│   └── powershell/             # 📜 10 automation scripts + helper module
+│   └── powershell/             # 📜 11 automation scripts + helper module
 │       ├── config/             #    Environment configs (dev/prod)
 │       ├── _PAMlab-Module.psm1
-│       └── 01-09 scripts
+│       └── 01-11 scripts
 │
-├── docker-compose.yml          # 🐳 One command to run everything (8 services)
+├── docker-compose.yml          # 🐳 One command to run the full local stack
 ├── CONTRIBUTING.md             # 📖 How to contribute
 ├── SECURITY.md                 # 🔒 Security policy
 ├── DISCLAIMER.md               # ⚠️ Legal disclaimer
@@ -1328,7 +1420,7 @@ Security Alert    Fudo PAM        Active Directory    Matrix42 / SNOW / JSM
 
 ## 🧪 Testing
 
-PAMlab ships with **145 automated tests** across all services, plus validated integration scenarios. Tests use [Jest](https://jestjs.io/) + [Supertest](https://github.com/ladjs/supertest) and run in-process — no servers to start.
+PAMlab ships with automated tests across all services, plus validated integration scenarios. Backend services use [Jest](https://jestjs.io/) + [Supertest](https://github.com/ladjs/supertest), and the studio is additionally covered by unit tests, linting, and build checks.
 
 ### Quick Start (New Developer)
 
@@ -1340,7 +1432,7 @@ cd PAMlab
 # 2. Run ALL tests (installs dependencies automatically)
 ./scripts/test-all.sh --install
 
-# That's it! You should see 145 tests pass across 8 services.
+# That's it! You should see the mock APIs, pipeline engine, and studio checks pass locally.
 ```
 
 ### Run Tests Individually
@@ -1352,7 +1444,7 @@ npm install
 npm test
 
 # Test another service
-cd ../cyberark-mock-api
+cd ../azure-ad-mock-api
 npm install
 npm test
 ```
@@ -1401,7 +1493,7 @@ PAMlab/
 | 🔗 Pipeline Engine | 16 | Health, Pipelines list/get/validate/run, Connectors + actions, Run history, Error handling |
 | 🔒 CyberArk PAM | 21 | Auth (Logon/Logoff/403), Safes CRUD + Members, Accounts CRUD + search, Password Retrieve/Change, Users + ResetPassword, PSM Sessions + Terminate, System Health |
 
-**Total: 145 tests**
+**Coverage is continuously expanded as new services and orchestration features land.**
 
 ### What Every Test Suite Covers
 
@@ -1507,10 +1599,10 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the full pipeline
 | — | 🖥️ **PAMlab Studio** (Web IDE) | ✅ Done |
 | [#6](https://github.com/BenediktSchackenberg/PAMlab/issues/6) | 🔒 **CyberArk PAM Mock** — PVWA REST API, Safes, Accounts, PSM (46 endpoints) | ✅ Done |
 | [#7](https://github.com/BenediktSchackenberg/PAMlab/issues/7) | 🔑 **HashiCorp Vault Mock** — Secrets, Dynamic Creds, PKI | 📋 Planned |
-| [#8](https://github.com/BenediktSchackenberg/PAMlab/issues/8) | ☁️ **Azure AD / Entra ID Mock** — Graph API, PIM, Conditional Access | 📋 Planned |
+| [#8](https://github.com/BenediktSchackenberg/PAMlab/issues/8) | ☁️ **Microsoft Entra ID Mock** — Graph API, OAuth, PIM, Conditional Access | ✅ Done |
 | [#14](https://github.com/BenediktSchackenberg/PAMlab/issues/14) | 📧 **Microsoft 365 / Graph Mock** — Mail, Teams, Planner | 📋 Planned |
-| [#9](https://github.com/BenediktSchackenberg/PAMlab/issues/9) | 🧪 **E2E Test Suite** — 145 automated tests across all APIs | ✅ Done |
-| [#10](https://github.com/BenediktSchackenberg/PAMlab/issues/10) | 🔗 **Pipeline Engine v2** — All connectors, conditional logic, loops | 📋 Planned |
+| [#9](https://github.com/BenediktSchackenberg/PAMlab/issues/9) | 🧪 **E2E Test Suite** — Automated regression coverage across all APIs | ✅ Done |
+| [#10](https://github.com/BenediktSchackenberg/PAMlab/issues/10) | 🔗 **Pipeline Engine v2** — All connectors, conditional logic, loops | ✅ Done |
 | [#11](https://github.com/BenediktSchackenberg/PAMlab/issues/11) | 🔄 **CI/CD + Docker Hub** — GitHub Actions, pre-built images | ✅ Done |
 | [#12](https://github.com/BenediktSchackenberg/PAMlab/issues/12) | 🖥️ **PAMlab Studio v2** — Multi-user collaboration, Python export, CMDB diff viewer | 📋 Planned |
 | [#13](https://github.com/BenediktSchackenberg/PAMlab/issues/13) | 🌐 **GitHub Pages Docs** — Full documentation site | 📋 Planned |
@@ -1540,10 +1632,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 |----------|-----------|------------|-----------------|
 | **Fudo PAM** | Session mgmt, password rotation, JIT access, safes | Token auth (allowlist, not real LDAP) | HA, real encryption |
 | **Active Directory** | User/Group/OU CRUD, DN structure, memberOf | Password validation (allowlist) | Kerberos, LDAP protocol, GPO |
+| **Microsoft Entra ID** | OAuth token flow, users/groups, service principals, Conditional Access, PIM activation | Simplified Graph permissions and policy evaluation | Real tenant federation, device objects, Intune |
 | **Matrix42 ESM** | Tickets, assets, employees, fragments, webhooks | Auth (token-based, not SAML) | Real CMDB sync, workflows |
 | **Remedy/Helix** | Incidents, changes, assets, SLA, work orders | Auth (allowlist) | BMC.CORE CMDB forms |
 | **ServiceNow** | Incidents, changes, CMDB topology, catalog | Auth (dev token) | ACLs, business rules |
 | **JSM** | Issues, JQL, transitions, approvals, SLA, webhooks | Auth (session/bearer) | Tempo, Confluence links |
+| **CyberArk PAS** | Safes, accounts, password checkout, rotation, PSM sessions | Simplified auth and vault workflow | CPM, PSA integrations, platform plugins |
 
 > **Note:** These are developer sandbox mocks. They simulate API shape and workflow behavior, not production security or data consistency.
 
