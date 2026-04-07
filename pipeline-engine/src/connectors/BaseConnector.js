@@ -43,14 +43,42 @@ class BaseConnector {
     }
 
     // Auto-Authentifizierung beim ersten Aufruf
-    if (!this.token) {
+    if (!this.token && !actionName.startsWith('auth.')) {
       await this.authenticate();
     }
 
     // Pfad-Parameter substituieren: /users/{id} → /users/123
-    let url = this.baseUrl + action.path;
-    for (const [key, value] of Object.entries(params)) {
-      url = url.replace(`{${key}}`, encodeURIComponent(value));
+    const usedPathParams = new Set();
+    let url = `${this.baseUrl}${action.path}`.replace(/\{(\w+)\}/g, (match, key) => {
+      if (params[key] === undefined || params[key] === null) {
+        throw new Error(`Pfad-Parameter "${key}" fehlt für ${this.name}.${actionName}`);
+      }
+      usedPathParams.add(key);
+      return encodeURIComponent(params[key]);
+    });
+
+    const remainingParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([key, value]) => !usedPathParams.has(key) && value !== undefined && value !== null,
+      ),
+    );
+
+    const upperMethod = action.method.toUpperCase();
+    if (['GET', 'DELETE', 'HEAD'].includes(upperMethod) && Object.keys(remainingParams).length > 0) {
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(remainingParams)) {
+        if (Array.isArray(value)) {
+          value.forEach((item) => query.append(key, String(item)));
+        } else if (typeof value === 'object') {
+          query.set(key, JSON.stringify(value));
+        } else {
+          query.set(key, String(value));
+        }
+      }
+      const queryString = query.toString();
+      if (queryString) {
+        url = `${url}?${queryString}`;
+      }
     }
 
     if (dryRun) {
@@ -58,42 +86,45 @@ class BaseConnector {
         dryRun: true,
         connector: this.name,
         action: actionName,
-        method: action.method,
+        method: upperMethod,
         url,
-        params,
+        params: remainingParams,
       };
     }
 
     // Body nur bei POST/PUT/PATCH
-    const hasBody = ['POST', 'PUT', 'PATCH'].includes(action.method.toUpperCase());
+    const hasBody = ['POST', 'PUT', 'PATCH'].includes(upperMethod);
     const headers = {
       'Content-Type': 'application/json',
       ...this.getAuthHeaders(),
     };
 
     const fetchOptions = {
-      method: action.method.toUpperCase(),
+      method: upperMethod,
       headers,
     };
 
     if (hasBody) {
-      // Pfad-Parameter aus dem Body entfernen
-      const bodyParams = { ...params };
-      const pathParamRegex = /\{(\w+)\}/g;
-      let match;
-      while ((match = pathParamRegex.exec(action.path)) !== null) {
-        delete bodyParams[match[1]];
-      }
-      fetchOptions.body = JSON.stringify(bodyParams);
+      fetchOptions.body = JSON.stringify(remainingParams);
     }
 
     const response = await fetch(url, fetchOptions);
-    let data;
+    const rawBody = await response.text();
     const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      data = await response.json();
+    let data = rawBody;
+
+    if (contentType.includes('application/json') && rawBody) {
+      data = JSON.parse(rawBody);
+    } else if (!rawBody) {
+      data = null;
+    } else if (contentType.includes('text/plain')) {
+      data = rawBody;
     } else {
-      data = await response.text();
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = rawBody;
+      }
     }
 
     if (!response.ok) {

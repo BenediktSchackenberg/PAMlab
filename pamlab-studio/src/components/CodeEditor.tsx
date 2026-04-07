@@ -4,7 +4,7 @@ import type { Page, ApiResult, StepResultType } from '../types';
 import { parseScript } from '../services/scriptParser';
 import { apiFetch } from '../services/api';
 import { prepareTestRun, executeCleanup, trackCreatedResources, type CleanupPlan } from '../services/testRunner';
-import { loadProductionConfig } from '../services/productionConfig';
+import { convertScriptToProduction, loadProductionConfig } from '../services/productionConfig';
 import { resolveStepReferences, extractIds, type StepResults } from '../services/stepResolver';
 
 export default function CodeEditor({ script, onScriptChange, onResults, onNavigate: _onNavigate }: {
@@ -32,16 +32,8 @@ export default function CodeEditor({ script, onScriptChange, onResults, onNaviga
       alert('Configure production systems in Settings → Production Config first');
       return;
     }
-    // Replace mock URLs with production URLs in the current script
-    const header = [
-      '# PAMlab Studio - Production Export',
-      `# Generated: ${new Date().toISOString()}`,
-      '#Requires -Version 5.1',
-      'Set-StrictMode -Version Latest',
-      '$ErrorActionPreference = "Stop"',
-      '',
-    ].join('\n');
-    const blob = new Blob([header + '\n' + script], { type: 'text/plain;charset=utf-8' });
+    const productionScript = convertScriptToProduction(script, configs);
+    const blob = new Blob([productionScript], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

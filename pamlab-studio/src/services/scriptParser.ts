@@ -19,6 +19,7 @@ export function parseScript(script: string): ApiCall[] {
     snowBase: settings.snowUrl,
     jsmBase: settings.jsmUrl,
     remedyBase: settings.remedyUrl,
+    cyberarkBase: settings.cyberarkUrl,
   };
 
   // Substitute $varName in a string

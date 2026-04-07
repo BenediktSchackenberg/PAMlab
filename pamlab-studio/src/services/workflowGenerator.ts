@@ -1,35 +1,9 @@
 import type { Workflow, WorkflowStep } from '../types';
 import { getConnector, getAction } from '../data/connectors';
 import { getSettings } from './api';
+import { baseUrlValue, baseUrlVar } from './connectorConfig';
 
 // ── Base URL mapping ───────────────────────────────────────────────
-function baseUrlVar(connectorId: string): string {
-  const map: Record<string, string> = {
-    ad: 'adBase',
-    'azure-ad': 'entraBase',
-    fudo: 'fudoBase',
-    matrix42: 'matrixBase',
-    servicenow: 'snowBase',
-    jira: 'jsmBase',
-    remedy: 'remedyBase',
-  };
-  return map[connectorId] || 'baseUrl';
-}
-
-function baseUrlValue(connectorId: string): string {
-  const s = getSettings();
-  const map: Record<string, string> = {
-    ad: s.adUrl,
-    'azure-ad': s.azureAdUrl,
-    fudo: s.fudoUrl,
-    matrix42: s.matrixUrl,
-    servicenow: s.snowUrl,
-    jira: s.jsmUrl,
-    remedy: s.remedyUrl,
-  };
-  return map[connectorId] || 'http://localhost:8443';
-}
-
 // ── Trigger templates ──────────────────────────────────────────────
 const triggerTemplates: Record<string, string> = {
   'manual': `# Trigger: Manual execution
@@ -120,6 +94,7 @@ function generateStep(step: WorkflowStep, index: number): string {
 
 // ── Main generator ─────────────────────────────────────────────────
 export function generateScript(workflow: Workflow): string {
+  const settings = getSettings();
   const lines: string[] = [];
 
   // Header
@@ -140,7 +115,7 @@ export function generateScript(workflow: Workflow): string {
   lines.push('# ── Configuration ──────────────────────────────────────────────');
   lines.push('# Replace these with your real environment URLs:');
   for (const cid of usedConnectors) {
-    lines.push(`$${baseUrlVar(cid)} = "${baseUrlValue(cid)}"`);
+    lines.push(`$${baseUrlVar(cid)} = "${baseUrlValue(cid, settings)}"`);
   }
   lines.push('');
 
@@ -193,7 +168,7 @@ export function generateTestScript(workflow: Workflow): string {
   // Base URLs
   const usedConnectors = [...new Set(workflow.steps.map(s => s.connectorId))];
   for (const cid of usedConnectors) {
-    lines.push(`$${baseUrlVar(cid)} = "${baseUrlValue(cid)}"`);
+    lines.push(`$${baseUrlVar(cid)} = "${baseUrlValue(cid, settings)}"`);
   }
   lines.push('');
 
