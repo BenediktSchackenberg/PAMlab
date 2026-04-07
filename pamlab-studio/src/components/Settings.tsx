@@ -104,6 +104,7 @@ export default function Settings() {
     { key: 'fudoUrl', label: 'Mock API URL', system: 'Fudo PAM' },
     { key: 'matrixUrl', label: 'Mock API URL', system: 'Matrix42 ESM' },
     { key: 'adUrl', label: 'Mock API URL', system: 'Active Directory' },
+    { key: 'azureAdUrl', label: 'Mock API URL', system: 'Microsoft Entra ID' },
     { key: 'snowUrl', label: 'Mock API URL', system: 'ServiceNow ITSM' },
     { key: 'jsmUrl', label: 'Mock API URL', system: 'Jira Service Mgmt' },
     { key: 'remedyUrl', label: 'Mock API URL', system: 'BMC Remedy / Helix' },
@@ -200,7 +201,7 @@ export default function Settings() {
           <p className="text-sm text-gray-400">Configure mock API endpoints for local development and testing.</p>
 
           {/* Group by system */}
-          {['Fudo PAM', 'Matrix42 ESM', 'Active Directory', 'ServiceNow ITSM', 'Jira Service Mgmt', 'BMC Remedy / Helix', 'Credentials'].map(system => {
+          {['Fudo PAM', 'Matrix42 ESM', 'Active Directory', 'Microsoft Entra ID', 'ServiceNow ITSM', 'Jira Service Mgmt', 'BMC Remedy / Helix', 'Credentials'].map(system => {
             const systemFields = mockFields.filter(f => f.system === system);
             return (
               <div key={system} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">

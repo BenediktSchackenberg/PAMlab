@@ -53,7 +53,7 @@ cd PAMlab
 docker-compose up
 ```
 
-This starts **all services** (6 mock APIs + pipeline engine + web IDE). Open [http://localhost:3000](http://localhost:3000) for PAMlab Studio.
+This starts **all services** (7 mock APIs + pipeline engine + web IDE). Open [http://localhost:3000](http://localhost:3000) for PAMlab Studio.
 
 ### Option 2: Manual (Run Each Service Individually)
 

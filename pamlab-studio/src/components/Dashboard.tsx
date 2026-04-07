@@ -20,6 +20,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     { name: 'Fudo PAM', url: settings.fudoUrl },
     { name: 'Matrix42 ESM', url: settings.matrixUrl },
     { name: 'Active Directory', url: settings.adUrl },
+    { name: 'Microsoft Entra ID', url: settings.azureAdUrl },
     { name: 'ServiceNow ITSM', url: settings.snowUrl },
     { name: 'Jira Service Mgmt', url: settings.jsmUrl },
     { name: 'BMC Remedy/Helix', url: settings.remedyUrl },
@@ -79,7 +80,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-100 mb-6">Dashboard</h2>
 
-      <div className="grid grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         {statuses.map((s) => (
           <ApiStatusCard key={s.name} status={s} />
         ))}
@@ -119,6 +120,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
             setResetMsg('');
             const resetUrls = [
               '/api/fudo/reset', '/api/matrix42/reset', '/api/ad/reset',
+              '/api/azure-ad/reset',
               '/api/snow/reset', '/api/jsm/reset', '/api/remedy/reset',
             ];
             const resetResults = await Promise.allSettled(

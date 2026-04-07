@@ -1,0 +1,37 @@
+name: 'Entra PIM Activation'
+description: 'Activate a Microsoft Entra PIM role, revoke stale sessions, and create an audit ticket.'
+version: '1.0'
+
+trigger:
+  source: azure-ad
+  event: pim-activation-request
+
+steps:
+  - name: 'Lookup Entra User'
+    system: azure-ad
+    action: users.get
+    params:
+      id: '{{ vars.user }}'
+
+  - name: 'Activate Privileged Role'
+    system: azure-ad
+    action: pim.activate-role
+    params:
+      principalId: '{{ steps.Lookup Entra User.result.id }}'
+      roleDefinitionId: '{{ vars.roleDefinitionId }}'
+      justification: '{{ vars.justification }}'
+
+  - name: 'Revoke Existing Sign-In Sessions'
+    system: azure-ad
+    action: users.revoke-signin-sessions
+    params:
+      id: '{{ steps.Lookup Entra User.result.id }}'
+
+  - name: 'Create Audit Ticket'
+    system: matrix42-esm
+    action: tickets.create
+    params:
+      title: 'Entra PIM activated for {{ vars.user }}'
+      description: 'Role {{ vars.roleDefinitionId }} activated and stale sessions revoked via PAMlab.'
+      category: 'access-management'
+      priority: 'high'

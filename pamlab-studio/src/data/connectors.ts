@@ -447,6 +447,116 @@ export const connectors: Connector[] = [
       },
     ],
   },
+  {
+    id: 'azure-ad',
+    name: 'Microsoft Entra ID',
+    icon: '☁️',
+    color: 'bg-cyan-600',
+    description: 'Cloud identity, Conditional Access, and PIM via Microsoft Graph',
+    actions: [
+      {
+        id: 'entra-list-users',
+        name: 'List Users',
+        description: 'List Microsoft Entra ID users',
+        method: 'GET',
+        path: '/v1.0/users',
+        params: [],
+      },
+      {
+        id: 'entra-create-user',
+        name: 'Create User',
+        description: 'Create a new cloud user account',
+        method: 'POST',
+        path: '/v1.0/users',
+        params: [
+          { id: 'userPrincipalName', label: 'User Principal Name', type: 'text', placeholder: 'cloud.ops@corp.local', required: true },
+          { id: 'displayName', label: 'Display Name', type: 'text', placeholder: 'Cloud Operations', required: true },
+          { id: 'givenName', label: 'First Name', type: 'text', placeholder: 'Cloud' },
+          { id: 'surname', label: 'Last Name', type: 'text', placeholder: 'Operations' },
+          { id: 'department', label: 'Department', type: 'text', placeholder: 'Cloud Platform' },
+          { id: 'jobTitle', label: 'Job Title', type: 'text', placeholder: 'Cloud Engineer' },
+        ],
+      },
+      {
+        id: 'entra-revoke-sessions',
+        name: 'Revoke Sign-In Sessions',
+        description: 'Invalidate active sign-in sessions for a user',
+        method: 'POST',
+        path: '/v1.0/users/{id}/revokeSignInSessions',
+        params: [
+          { id: 'id', label: 'User ID / UPN', type: 'text', placeholder: 'b.wilson@corp.local', required: true },
+        ],
+      },
+      {
+        id: 'entra-create-group',
+        name: 'Create Group',
+        description: 'Create a new Entra security group',
+        method: 'POST',
+        path: '/v1.0/groups',
+        params: [
+          { id: 'displayName', label: 'Group Name', type: 'text', placeholder: 'Emergency-Responders', required: true },
+          { id: 'description', label: 'Description', type: 'text', placeholder: 'Temporary response team' },
+        ],
+      },
+      {
+        id: 'entra-add-group-member',
+        name: 'Add Group Member',
+        description: 'Add a user or service principal to an Entra group',
+        method: 'POST',
+        path: '/v1.0/groups/{id}/members',
+        params: [
+          { id: 'id', label: 'Group ID', type: 'select', required: true, options: [
+            { value: '30000000-0000-0000-0000-000000000001', label: 'Cloud-Admins' },
+            { value: '30000000-0000-0000-0000-000000000002', label: 'Azure-Contributors' },
+            { value: '30000000-0000-0000-0000-000000000003', label: 'PIM-Eligible' },
+          ]},
+          { id: 'memberId', label: 'Directory Object ID', type: 'text', placeholder: '20000000-0000-0000-0000-000000000004', required: true },
+        ],
+      },
+      {
+        id: 'entra-create-ca-policy',
+        name: 'Create CA Policy',
+        description: 'Create a Conditional Access policy',
+        method: 'POST',
+        path: '/v1.0/identity/conditionalAccess/policies',
+        params: [
+          { id: 'displayName', label: 'Policy Name', type: 'text', placeholder: 'Require compliant device for admins', required: true },
+          { id: 'state', label: 'State', type: 'select', default: 'enabled', options: [
+            { value: 'enabled', label: 'Enabled' },
+            { value: 'disabled', label: 'Disabled' },
+            { value: 'enabledForReportingButNotEnforced', label: 'Report only' },
+          ]},
+        ],
+      },
+      {
+        id: 'entra-activate-pim',
+        name: 'Activate PIM Role',
+        description: 'Activate an eligible privileged role',
+        method: 'POST',
+        path: '/v1.0/roleManagement/directory/roleAssignmentScheduleRequests',
+        params: [
+          { id: 'principalId', label: 'Principal', type: 'select', required: true, options: [
+            { value: '20000000-0000-0000-0000-000000000004', label: 'Bob Wilson' },
+            { value: '20000000-0000-0000-0000-000000000008', label: 'Cloud Operations' },
+          ]},
+          { id: 'roleDefinitionId', label: 'Role', type: 'select', required: true, options: [
+            { value: '62e90394-69f5-4237-9190-012177145e10', label: 'Global Administrator' },
+            { value: 'e8611ab8-c189-46e8-94e1-60213ab1f814', label: 'Privileged Role Administrator' },
+            { value: '194ae4cb-b126-40b2-bd5b-6091b380977d', label: 'Security Administrator' },
+          ]},
+          { id: 'justification', label: 'Justification', type: 'text', placeholder: 'Emergency admin access for PAM maintenance', required: true },
+        ],
+      },
+      {
+        id: 'entra-list-service-principals',
+        name: 'List Service Principals',
+        description: 'List Entra service principals / app registrations',
+        method: 'GET',
+        path: '/v1.0/servicePrincipals',
+        params: [],
+      },
+    ],
+  },
 ];
 
 /** Get a connector by ID */

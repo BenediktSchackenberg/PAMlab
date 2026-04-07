@@ -73,6 +73,7 @@ export interface AppSettings {
   fudoUrl: string;
   matrixUrl: string;
   adUrl: string;
+  azureAdUrl: string;
   snowUrl: string;
   jsmUrl: string;
   remedyUrl: string;

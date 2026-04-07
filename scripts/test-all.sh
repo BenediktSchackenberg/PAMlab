@@ -11,6 +11,7 @@ SERVICES=(
   fudo-mock-api
   matrix42-mock-api
   ad-mock-api
+  azure-ad-mock-api
   servicenow-mock-api
   jsm-mock-api
   remedy-mock-api

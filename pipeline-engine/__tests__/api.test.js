@@ -45,6 +45,13 @@ describe('Pipeline Engine', () => {
     expect(res.body.actions).toBeDefined();
   });
 
+  test('GET /connectors/azure-ad/actions returns actions', async () => {
+    const res = await request(app).get('/connectors/azure-ad/actions');
+    expect(res.status).toBe(200);
+    expect(res.body.actions).toBeDefined();
+    expect(res.body.actions['pim.activate-role']).toBeDefined();
+  });
+
   test('GET /connectors/nonexistent/actions returns 404', async () => {
     const res = await request(app).get('/connectors/nonexistent/actions');
     expect(res.status).toBe(404);
@@ -105,5 +112,11 @@ describe('Pipeline Engine', () => {
   test('GET /pipelines/nonexistent.yaml returns 404', async () => {
     const res = await request(app).get('/pipelines/nonexistent.yaml');
     expect(res.status).toBe(404);
+  });
+
+  test('GET /pipelines/entra-pim-activation.yaml returns pipeline', async () => {
+    const res = await request(app).get('/pipelines/entra-pim-activation.yaml');
+    expect(res.status).toBe(200);
+    expect(res.body.pipeline.name).toBe('Entra PIM Activation');
   });
 });

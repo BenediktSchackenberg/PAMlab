@@ -47,6 +47,22 @@ services:
       timeout: 5s
       retries: 3
 
+  azure-ad-mock:
+    build:
+      context: ./azure-ad-mock-api
+      dockerfile: Dockerfile
+    container_name: pamlab-azure-ad
+    ports:
+      - "8452:8452"
+    environment:
+      - PORT=8452
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8452/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   servicenow-mock:
     build:
       context: ./servicenow-mock-api
@@ -75,6 +91,7 @@ services:
       - FUDO_URL=http://fudo-mock:8443
       - M42_URL=http://matrix42-mock:8444
       - AD_URL=http://ad-mock:8445
+      - AZURE_AD_URL=http://azure-ad-mock:8452
       - SNOW_URL=http://servicenow-mock:8447
       - JSM_URL=http://jsm-mock:8448
       - REMEDY_URL=http://remedy-mock:8449
@@ -85,6 +102,8 @@ services:
       matrix42-mock:
         condition: service_healthy
       ad-mock:
+        condition: service_healthy
+      azure-ad-mock:
         condition: service_healthy
       servicenow-mock:
         condition: service_healthy
@@ -158,11 +177,14 @@ services:
       - VITE_FUDO_URL=http://localhost:8443
       - VITE_M42_URL=http://localhost:8444
       - VITE_AD_URL=http://localhost:8445
+      - VITE_AZURE_AD_URL=http://localhost:8452
     depends_on:
       fudo-mock:
         condition: service_healthy
       matrix42-mock:
         condition: service_healthy
       ad-mock:
+        condition: service_healthy
+      azure-ad-mock:
         condition: service_healthy
     restart: unless-stopped

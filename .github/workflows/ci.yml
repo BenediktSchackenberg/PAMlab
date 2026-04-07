@@ -14,6 +14,7 @@ jobs:
         node-version: [18, 20]
         service:
           - ad-mock-api
+          - azure-ad-mock-api
           - cyberark-mock-api
           - fudo-mock-api
           - jsm-mock-api

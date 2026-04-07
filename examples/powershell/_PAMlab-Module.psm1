@@ -7,9 +7,11 @@
 $script:FudoToken = $null
 $script:M42Token = $null
 $script:ADToken = $null
+$script:AzureAdToken = $null
 $script:FudoUrl = $null
 $script:M42Url = $null
 $script:ADUrl = $null
+$script:AzureAdUrl = $null
 $script:ConfigFile = $null
 
 function Import-PAMlabConfig {
@@ -60,9 +62,12 @@ function Connect-PAMlab {
         [string]$FudoUrl = "",
         [string]$M42Url = "",
         [string]$ADUrl = "",
+        [string]$AzureAdUrl = "",
         [string]$FudoUser = "",
         [string]$FudoPassword = "",
-        [string]$M42ApiToken = ""
+        [string]$M42ApiToken = "",
+        [string]$AzureAdClientId = "",
+        [string]$AzureAdClientSecret = ""
     )
 
     # --- Load config file ---
@@ -81,13 +86,17 @@ function Connect-PAMlab {
     if (-not $FudoUrl)      { $FudoUrl      = if ($env:FUDO_URL)      { $env:FUDO_URL }      else { "http://localhost:8443" } }
     if (-not $M42Url)       { $M42Url       = if ($env:M42_URL)       { $env:M42_URL }       else { "http://localhost:8444" } }
     if (-not $ADUrl)        { $ADUrl        = if ($env:AD_URL)        { $env:AD_URL }        else { "http://localhost:8445" } }
+    if (-not $AzureAdUrl)   { $AzureAdUrl   = if ($env:AZURE_AD_URL)  { $env:AZURE_AD_URL }  else { "http://localhost:8452" } }
     if (-not $FudoUser)     { $FudoUser     = if ($env:FUDO_USER)     { $env:FUDO_USER }     else { "admin" } }
     if (-not $FudoPassword) { $FudoPassword = if ($env:FUDO_PASSWORD) { $env:FUDO_PASSWORD } else { "admin123" } }
     if (-not $M42ApiToken)  { $M42ApiToken  = if ($env:M42_API_TOKEN) { $env:M42_API_TOKEN } else { "pamlab-dev-token" } }
+    if (-not $AzureAdClientId)     { $AzureAdClientId     = if ($env:AZURE_AD_CLIENT_ID)     { $env:AZURE_AD_CLIENT_ID }     else { "11111111-2222-3333-4444-555555555551" } }
+    if (-not $AzureAdClientSecret) { $AzureAdClientSecret = if ($env:AZURE_AD_CLIENT_SECRET) { $env:AZURE_AD_CLIENT_SECRET } else { "PAMlab-Secret-1!" } }
 
     $script:FudoUrl = $FudoUrl
     $script:M42Url = $M42Url
     $script:ADUrl = $ADUrl
+    $script:AzureAdUrl = $AzureAdUrl
 
     Write-Host "`n🔐 Connecting to PAMlab APIs...`n" -ForegroundColor Cyan
 
@@ -121,6 +130,21 @@ function Connect-PAMlab {
         Write-Step "Active Directory authentication" $true
     } catch {
         Write-Step "Active Directory authentication: $_" $false
+    }
+
+    # --- Microsoft Entra ID ---
+    try {
+        $body = @{
+            grant_type    = "client_credentials"
+            client_id     = $AzureAdClientId
+            client_secret = $AzureAdClientSecret
+            scope         = "https://graph.microsoft.com/.default"
+        }
+        $resp = Invoke-RestMethod -Uri "$AzureAdUrl/oauth2/v2.0/token" -Method POST -Body $body
+        $script:AzureAdToken = $resp.access_token
+        Write-Step "Microsoft Entra ID authentication" $true
+    } catch {
+        Write-Step "Microsoft Entra ID authentication: $_" $false
     }
 
     Write-Host ""
@@ -201,6 +225,31 @@ function Invoke-AD {
     Invoke-RestMethod @params
 }
 
+function Invoke-Entra {
+    <#
+    .SYNOPSIS
+        Wrapper for Microsoft Entra ID API calls. Auto-adds Bearer token and base URL.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Endpoint,
+        [string]$Method = "GET",
+        [object]$Body = $null
+    )
+
+    $headers = @{ Authorization = "Bearer $script:AzureAdToken" }
+    $params = @{
+        Uri         = "$script:AzureAdUrl$Endpoint"
+        Method      = $Method
+        Headers     = $headers
+        ContentType = "application/json"
+    }
+    if ($Body) {
+        $params.Body = if ($Body -is [string]) { $Body } else { $Body | ConvertTo-Json -Depth 10 }
+    }
+    Invoke-RestMethod @params
+}
+
 function Write-Step {
     <#
     .SYNOPSIS
@@ -228,7 +277,8 @@ function Test-ApiHealth {
     param(
         [string]$FudoUrl = "http://localhost:8443",
         [string]$M42Url = "http://localhost:8444",
-        [string]$ADUrl = "http://localhost:8445"
+        [string]$ADUrl = "http://localhost:8445",
+        [string]$AzureAdUrl = "http://localhost:8452"
     )
 
     Write-Host "`n🏥 Checking API health...`n" -ForegroundColor Cyan
@@ -238,7 +288,8 @@ function Test-ApiHealth {
     foreach ($api in @(
         @{ Name = "Fudo PAM";    Url = "$FudoUrl/api/v2/health" },
         @{ Name = "Matrix42 ESM"; Url = "$M42Url/m42Services/api/health" },
-        @{ Name = "Active Directory"; Url = "$ADUrl/api/ad/health" }
+        @{ Name = "Active Directory"; Url = "$ADUrl/api/ad/health" },
+        @{ Name = "Microsoft Entra ID"; Url = "$AzureAdUrl/health" }
     )) {
         try {
             $null = Invoke-RestMethod -Uri $api.Url -Method GET -TimeoutSec 5
@@ -253,7 +304,7 @@ function Test-ApiHealth {
     return $allHealthy
 }
 
-Export-ModuleMember -Function Connect-PAMlab, Invoke-Fudo, Invoke-M42, Invoke-AD, Write-Step, Test-ApiHealth, Switch-PAMlabEnv, Import-PAMlabConfig
+Export-ModuleMember -Function Connect-PAMlab, Invoke-Fudo, Invoke-M42, Invoke-AD, Invoke-Entra, Write-Step, Test-ApiHealth, Switch-PAMlabEnv, Import-PAMlabConfig
 
 function Switch-PAMlabEnv {
     <#

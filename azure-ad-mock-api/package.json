@@ -1,0 +1,19 @@
+{
+  "name": "azure-ad-mock-api",
+  "version": "1.0.0",
+  "description": "Microsoft Entra ID / Azure AD Mock API for PAMlab",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "jest --forceExit --detectOpenHandles"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2"
+  }
+}

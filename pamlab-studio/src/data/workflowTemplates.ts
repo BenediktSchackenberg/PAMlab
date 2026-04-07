@@ -346,4 +346,42 @@ export const workflowTemplates: Workflow[] = [
       },
     ],
   },
+  {
+    name: 'Entra PIM Activation',
+    description: 'Activate a Microsoft Entra PIM role for Bob Wilson, revoke stale sessions, and log the change in ServiceNow.',
+    trigger: 'manual',
+    steps: [
+      {
+        id: 'tpl-entra-1',
+        connectorId: 'azure-ad',
+        actionId: 'entra-activate-pim',
+        label: 'Activate Privileged Role',
+        params: {
+          principalId: '20000000-0000-0000-0000-000000000004',
+          roleDefinitionId: 'e8611ab8-c189-46e8-94e1-60213ab1f814',
+          justification: 'Emergency admin access for PAM maintenance',
+        },
+      },
+      {
+        id: 'tpl-entra-2',
+        connectorId: 'azure-ad',
+        actionId: 'entra-revoke-sessions',
+        label: 'Revoke Existing Sessions',
+        params: {
+          id: 'b.wilson@corp.local',
+        },
+      },
+      {
+        id: 'tpl-entra-3',
+        connectorId: 'servicenow',
+        actionId: 'snow-create-change',
+        label: 'Log Change Request',
+        params: {
+          short_description: 'Entra PIM activation for Bob Wilson',
+          type: 'normal',
+          risk: 'moderate',
+        },
+      },
+    ],
+  },
 ];

@@ -11,6 +11,7 @@ export default function ApiExplorer() {
     'Fudo PAM': settings.fudoUrl,
     'Matrix42 ESM': settings.matrixUrl,
     'Active Directory': settings.adUrl,
+    'Microsoft Entra ID': settings.azureAdUrl,
     'ServiceNow ITSM': settings.snowUrl,
     'Jira Service Management': settings.jsmUrl,
     'BMC Remedy / Helix': settings.remedyUrl,

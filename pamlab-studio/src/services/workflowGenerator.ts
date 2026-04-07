@@ -6,6 +6,7 @@ import { getSettings } from './api';
 function baseUrlVar(connectorId: string): string {
   const map: Record<string, string> = {
     ad: 'adBase',
+    'azure-ad': 'entraBase',
     fudo: 'fudoBase',
     matrix42: 'matrixBase',
     servicenow: 'snowBase',
@@ -19,6 +20,7 @@ function baseUrlValue(connectorId: string): string {
   const s = getSettings();
   const map: Record<string, string> = {
     ad: s.adUrl,
+    'azure-ad': s.azureAdUrl,
     fudo: s.fudoUrl,
     matrix42: s.matrixUrl,
     servicenow: s.snowUrl,

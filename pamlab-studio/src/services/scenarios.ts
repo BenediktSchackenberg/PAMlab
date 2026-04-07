@@ -766,4 +766,46 @@ Write-Host "Report generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Write-Host "========================================="
 `,
   },
+  {
+    id: 'entra-pim-jit',
+    name: 'Entra PIM JIT Activation',
+    description: 'Activate a Microsoft Entra PIM role, revoke stale sessions, and verify the updated privileged assignment list.',
+    systems: ['Microsoft Entra ID'],
+    steps: [
+      'Authenticate against Microsoft Graph mock',
+      'Activate eligible PIM role',
+      'Revoke existing sign-in sessions',
+      'List active role assignments',
+    ],
+    template: `# Entra PIM JIT Activation
+$entraBase = "http://localhost:8452"
+
+$tokenBody = @{
+  grant_type = "client_credentials"
+  client_id = "11111111-2222-3333-4444-555555555551"
+  client_secret = "PAMlab-Secret-1!"
+  scope = "https://graph.microsoft.com/.default"
+}
+$token = Invoke-RestMethod -Uri "$entraBase/oauth2/v2.0/token" -Method POST -Body $tokenBody
+$auth = @{ Authorization = "Bearer $($token.access_token)" }
+
+# Step 1: Activate privileged role
+$activation = @{
+  action = "selfActivate"
+  principalId = "20000000-0000-0000-0000-000000000004"
+  roleDefinitionId = "e8611ab8-c189-46e8-94e1-60213ab1f814"
+  justification = "Emergency admin access for PAM maintenance"
+}
+$request = Invoke-RestMethod -Uri "$entraBase/v1.0/roleManagement/directory/roleAssignmentScheduleRequests" -Headers $auth -Method POST -Body ($activation | ConvertTo-Json) -ContentType "application/json"
+Write-Host "Activated request: $($request.id)"
+
+# Step 2: Revoke stale sessions
+Invoke-RestMethod -Uri "$entraBase/v1.0/users/b.wilson@corp.local/revokeSignInSessions" -Headers $auth -Method POST -ContentType "application/json"
+Write-Host "Sign-in sessions revoked for b.wilson@corp.local"
+
+# Step 3: Verify active assignments
+$assignments = Invoke-RestMethod -Uri "$entraBase/v1.0/roleManagement/directory/roleAssignments" -Headers $auth -Method GET
+Write-Host "Active assignments: $($assignments.value.Count)"
+`,
+  },
 ];

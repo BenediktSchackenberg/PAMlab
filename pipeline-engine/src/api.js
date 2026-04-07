@@ -13,6 +13,7 @@ const ConnectorRegistry = require('./connectors/ConnectorRegistry');
 const FudoPamConnector = require('./connectors/fudo-pam');
 const Matrix42EsmConnector = require('./connectors/matrix42-esm');
 const ActiveDirectoryConnector = require('./connectors/active-directory');
+const AzureAdConnector = require('./connectors/azure-ad');
 
 const app = express();
 const PORT = process.env.PORT || 8446;
@@ -36,6 +37,7 @@ registry.register(
   'active-directory',
   new ActiveDirectoryConnector(process.env.AD_URL || 'http://localhost:8445'),
 );
+registry.register('azure-ad', new AzureAdConnector(process.env.AZURE_AD_URL || 'http://localhost:8452'));
 
 const runner = new PipelineRunner(registry);
 

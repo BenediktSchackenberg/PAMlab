@@ -3,7 +3,7 @@ import type { Workflow } from '../types/workflow';
 export interface SystemConfig {
   id: string;
   name: string;
-  type: 'fudo' | 'matrix42' | 'ad' | 'servicenow' | 'jira' | 'remedy';
+  type: 'fudo' | 'matrix42' | 'ad' | 'azure-ad' | 'servicenow' | 'jira' | 'remedy';
   baseUrl: string;
   auth: AuthConfig;
 }
@@ -20,6 +20,7 @@ export function generateProductionConfigTemplate(): SystemConfig[] {
     { id: 'fudo', name: 'Fudo PAM', type: 'fudo', baseUrl: 'https://fudo.company.com', auth: { method: 'api-token', token: '' } },
     { id: 'matrix42', name: 'Matrix42 ESM', type: 'matrix42', baseUrl: 'https://matrix42.company.com', auth: { method: 'api-key', headerName: 'Authorization', apiKey: '' } },
     { id: 'ad', name: 'Active Directory', type: 'ad', baseUrl: 'ldap://dc01.company.com', auth: { method: 'ldap-bind', bindDN: 'CN=svc-pamlab,OU=Service Accounts,DC=company,DC=com', password: '' } },
+    { id: 'azure-ad', name: 'Microsoft Entra ID', type: 'azure-ad', baseUrl: 'https://graph.microsoft.com', auth: { method: 'oauth2', clientId: '', clientSecret: '', tokenUrl: 'https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token' } },
     { id: 'servicenow', name: 'ServiceNow', type: 'servicenow', baseUrl: 'https://company.service-now.com', auth: { method: 'oauth2', clientId: '', clientSecret: '', tokenUrl: 'https://company.service-now.com/oauth_token.do' } },
     { id: 'jira', name: 'Jira Service Mgmt', type: 'jira', baseUrl: 'https://company.atlassian.net', auth: { method: 'api-token', token: '' } },
     { id: 'remedy', name: 'BMC Remedy', type: 'remedy', baseUrl: 'https://remedy.company.com', auth: { method: 'basic', username: '', password: '' } },

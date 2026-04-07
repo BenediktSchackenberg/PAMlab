@@ -9,6 +9,7 @@ const ConnectorRegistry = require('./connectors/ConnectorRegistry');
 const FudoPamConnector = require('./connectors/fudo-pam');
 const Matrix42EsmConnector = require('./connectors/matrix42-esm');
 const ActiveDirectoryConnector = require('./connectors/active-directory');
+const AzureAdConnector = require('./connectors/azure-ad');
 
 // --- Registry mit allen Connectors aufbauen ---
 function createRegistry() {
@@ -25,6 +26,7 @@ function createRegistry() {
     'active-directory',
     new ActiveDirectoryConnector(process.env.AD_URL || 'http://localhost:8445'),
   );
+  registry.register('azure-ad', new AzureAdConnector(process.env.AZURE_AD_URL || 'http://localhost:8452'));
   return registry;
 }
 
@@ -65,6 +67,7 @@ Umgebungsvariablen:
   FUDO_URL    Fudo PAM API URL    (Standard: http://localhost:8443)
   M42_URL     Matrix42 ESM URL    (Standard: http://localhost:8444)
   AD_URL      Active Directory URL (Standard: http://localhost:8445)
+  AZURE_AD_URL Microsoft Entra ID URL (Standard: http://localhost:8452)
 `);
     process.exit(0);
   }
