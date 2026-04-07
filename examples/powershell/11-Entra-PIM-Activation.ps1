@@ -11,7 +11,7 @@ $PrincipalUpn = "b.wilson@corp.local"
 $RoleDefinitionId = "e8611ab8-c189-46e8-94e1-60213ab1f814"
 $Justification = "Emergency admin access for PAM maintenance"
 
-Write-Host "☁️  Microsoft Entra ID PIM Activation" -ForegroundColor Cyan
+Write-Host "Microsoft Entra ID PIM Activation" -ForegroundColor Cyan
 Write-Host "   Principal: $PrincipalUpn" -ForegroundColor Gray
 Write-Host "   Role ID:   $RoleDefinitionId`n" -ForegroundColor Gray
 
@@ -66,7 +66,7 @@ try {
 
     if ($active) {
         Write-Step "Verified active privileged assignment" $true
-        $summary += "Active role assignments: $($active.Count)"
+        $summary += "Active role assignments: $(@($active).Count)"
     } else {
         throw "Activated role not found in active assignments"
     }
@@ -74,7 +74,7 @@ try {
     Write-Step "Verify assignments: $_" $false
 }
 
-Write-Host "`n📋 Entra PIM Summary" -ForegroundColor Cyan
+Write-Host "`nEntra PIM Summary" -ForegroundColor Cyan
 Write-Host ("=" * 50) -ForegroundColor Gray
-$summary | ForEach-Object { Write-Host "  • $_" -ForegroundColor White }
+$summary | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
 Write-Host ""

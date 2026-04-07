@@ -18,6 +18,9 @@ function Import-PAMlabConfig {
     <#
     .SYNOPSIS
         Parses a .env file and sets environment variables.
+    .DESCRIPTION
+        Existing process environment variables are preserved so callers can
+        override values for one-off runs without editing the config file.
     #>
     [CmdletBinding()]
     param(
@@ -25,36 +28,64 @@ function Import-PAMlabConfig {
     )
 
     if (-not (Test-Path $Path)) {
-        Write-Host "  ❌ Config file not found: $Path" -ForegroundColor Red
+        Write-Host "  [FAIL] Config file not found: $Path" -ForegroundColor Red
         return $false
     }
 
     Get-Content $Path | ForEach-Object {
         $line = $_.Trim()
         if ($line -eq '' -or $line.StartsWith('#')) { return }
+
         if ($line -match '^([^=]+)=(.*)$') {
-            [Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), "Process")
+            $key = $Matches[1].Trim()
+            $value = $Matches[2].Trim()
+            $existingValue = [Environment]::GetEnvironmentVariable($key, "Process")
+
+            if ([string]::IsNullOrWhiteSpace($existingValue)) {
+                [Environment]::SetEnvironmentVariable($key, $value, "Process")
+            }
         }
     }
 
     $envName = $env:PAMLAB_ENV
     if ($envName -eq 'production') {
-        Write-Host "  ⚠️  PRODUCTION environment loaded from: $Path" -ForegroundColor Red
-        Write-Host "  ⚠️  You are working against PRODUCTION systems!" -ForegroundColor Red
+        Write-Host "  [WARN] PRODUCTION environment loaded from: $Path" -ForegroundColor Red
+        Write-Host "  [WARN] You are working against PRODUCTION systems!" -ForegroundColor Red
     } else {
-        Write-Host "  🧪 Dev environment loaded from: $Path" -ForegroundColor Green
+        Write-Host "  [OK] Dev environment loaded from: $Path" -ForegroundColor Green
     }
 
     return $true
 }
 
+function Get-PAMlabSetting {
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()][string]$ExplicitValue,
+        [string]$EnvironmentVariable,
+        [string]$DefaultValue
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitValue)) {
+        return $ExplicitValue
+    }
+
+    $envValue = [Environment]::GetEnvironmentVariable($EnvironmentVariable, "Process")
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+        return $envValue
+    }
+
+    return $DefaultValue
+}
+
 function Connect-PAMlab {
     <#
     .SYNOPSIS
-        Authenticates to all 3 PAMlab APIs and stores tokens.
+        Authenticates to all PAMlab APIs and stores tokens.
     .DESCRIPTION
         Loads config from .env file, then connects to Fudo PAM, Matrix42 ESM,
-        and Active Directory APIs. Tokens are stored in module scope.
+        Active Directory, and Microsoft Entra ID APIs. Tokens are stored in
+        module scope.
     #>
     [CmdletBinding()]
     param(
@@ -70,7 +101,6 @@ function Connect-PAMlab {
         [string]$AzureAdClientSecret = ""
     )
 
-    # --- Load config file ---
     if (-not $ConfigFile) {
         $ConfigFile = "$PSScriptRoot/config/.env"
     }
@@ -79,28 +109,26 @@ function Connect-PAMlab {
     }
     $script:ConfigFile = $ConfigFile
 
-    Write-Host "`n📁 Loading configuration..." -ForegroundColor Cyan
-    $loaded = Import-PAMlabConfig -Path $ConfigFile
+    Write-Host "`nLoading configuration..." -ForegroundColor Cyan
+    $null = Import-PAMlabConfig -Path $ConfigFile
 
-    # Use env vars as defaults, allow explicit params to override
-    if (-not $FudoUrl)      { $FudoUrl      = if ($env:FUDO_URL)      { $env:FUDO_URL }      else { "http://localhost:8443" } }
-    if (-not $M42Url)       { $M42Url       = if ($env:M42_URL)       { $env:M42_URL }       else { "http://localhost:8444" } }
-    if (-not $ADUrl)        { $ADUrl        = if ($env:AD_URL)        { $env:AD_URL }        else { "http://localhost:8445" } }
-    if (-not $AzureAdUrl)   { $AzureAdUrl   = if ($env:AZURE_AD_URL)  { $env:AZURE_AD_URL }  else { "http://localhost:8452" } }
-    if (-not $FudoUser)     { $FudoUser     = if ($env:FUDO_USER)     { $env:FUDO_USER }     else { "admin" } }
-    if (-not $FudoPassword) { $FudoPassword = if ($env:FUDO_PASSWORD) { $env:FUDO_PASSWORD } else { "admin123" } }
-    if (-not $M42ApiToken)  { $M42ApiToken  = if ($env:M42_API_TOKEN) { $env:M42_API_TOKEN } else { "pamlab-dev-token" } }
-    if (-not $AzureAdClientId)     { $AzureAdClientId     = if ($env:AZURE_AD_CLIENT_ID)     { $env:AZURE_AD_CLIENT_ID }     else { "11111111-2222-3333-4444-555555555551" } }
-    if (-not $AzureAdClientSecret) { $AzureAdClientSecret = if ($env:AZURE_AD_CLIENT_SECRET) { $env:AZURE_AD_CLIENT_SECRET } else { "PAMlab-Secret-1!" } }
+    $FudoUrl = Get-PAMlabSetting -ExplicitValue $FudoUrl -EnvironmentVariable 'FUDO_URL' -DefaultValue 'http://localhost:8443'
+    $M42Url = Get-PAMlabSetting -ExplicitValue $M42Url -EnvironmentVariable 'M42_URL' -DefaultValue 'http://localhost:8444'
+    $ADUrl = Get-PAMlabSetting -ExplicitValue $ADUrl -EnvironmentVariable 'AD_URL' -DefaultValue 'http://localhost:8445'
+    $AzureAdUrl = Get-PAMlabSetting -ExplicitValue $AzureAdUrl -EnvironmentVariable 'AZURE_AD_URL' -DefaultValue 'http://localhost:8452'
+    $FudoUser = Get-PAMlabSetting -ExplicitValue $FudoUser -EnvironmentVariable 'FUDO_USER' -DefaultValue 'admin'
+    $FudoPassword = Get-PAMlabSetting -ExplicitValue $FudoPassword -EnvironmentVariable 'FUDO_PASSWORD' -DefaultValue 'admin123'
+    $M42ApiToken = Get-PAMlabSetting -ExplicitValue $M42ApiToken -EnvironmentVariable 'M42_API_TOKEN' -DefaultValue 'pamlab-dev-token'
+    $AzureAdClientId = Get-PAMlabSetting -ExplicitValue $AzureAdClientId -EnvironmentVariable 'AZURE_AD_CLIENT_ID' -DefaultValue '11111111-2222-3333-4444-555555555551'
+    $AzureAdClientSecret = Get-PAMlabSetting -ExplicitValue $AzureAdClientSecret -EnvironmentVariable 'AZURE_AD_CLIENT_SECRET' -DefaultValue 'PAMlab-Secret-1!'
 
     $script:FudoUrl = $FudoUrl
     $script:M42Url = $M42Url
     $script:ADUrl = $ADUrl
     $script:AzureAdUrl = $AzureAdUrl
 
-    Write-Host "`n🔐 Connecting to PAMlab APIs...`n" -ForegroundColor Cyan
+    Write-Host "`nConnecting to PAMlab APIs...`n" -ForegroundColor Cyan
 
-    # --- Fudo PAM ---
     try {
         $body = @{ login = $FudoUser; password = $FudoPassword } | ConvertTo-Json
         $resp = Invoke-RestMethod -Uri "$FudoUrl/api/v2/auth/login" -Method POST -Body $body -ContentType "application/json"
@@ -110,7 +138,6 @@ function Connect-PAMlab {
         Write-Step "Fudo PAM authentication: $_" $false
     }
 
-    # --- Matrix42 ESM ---
     try {
         $headers = @{ Authorization = "Bearer $M42ApiToken" }
         $resp = Invoke-RestMethod -Uri "$M42Url/m42Services/api/ApiToken/GenerateAccessTokenFromApiToken/" -Method POST -Headers $headers
@@ -120,10 +147,9 @@ function Connect-PAMlab {
         Write-Step "Matrix42 ESM authentication: $_" $false
     }
 
-    # --- Active Directory ---
     try {
-        $adBindDn = if ($env:AD_BIND_DN) { $env:AD_BIND_DN } else { "CN=admin" }
-        $adBindPw = if ($env:AD_BIND_PASSWORD) { $env:AD_BIND_PASSWORD } else { "admin" }
+        $adBindDn = Get-PAMlabSetting -ExplicitValue '' -EnvironmentVariable 'AD_BIND_DN' -DefaultValue 'CN=admin'
+        $adBindPw = Get-PAMlabSetting -ExplicitValue '' -EnvironmentVariable 'AD_BIND_PASSWORD' -DefaultValue 'admin'
         $body = @{ dn = $adBindDn; password = $adBindPw } | ConvertTo-Json
         $resp = Invoke-RestMethod -Uri "$ADUrl/api/ad/auth/bind" -Method POST -Body $body -ContentType "application/json"
         $script:ADToken = $resp.token
@@ -132,7 +158,6 @@ function Connect-PAMlab {
         Write-Step "Active Directory authentication: $_" $false
     }
 
-    # --- Microsoft Entra ID ---
     try {
         $body = @{
             grant_type    = "client_credentials"
@@ -253,7 +278,7 @@ function Invoke-Entra {
 function Write-Step {
     <#
     .SYNOPSIS
-        Pretty-prints a step result with ✅ or ❌ icon.
+        Pretty-prints a step result.
     #>
     [CmdletBinding()]
     param(
@@ -262,16 +287,16 @@ function Write-Step {
     )
 
     if ($Success) {
-        Write-Host "  ✅ $Message" -ForegroundColor Green
+        Write-Host "  [OK] $Message" -ForegroundColor Green
     } else {
-        Write-Host "  ❌ $Message" -ForegroundColor Red
+        Write-Host "  [FAIL] $Message" -ForegroundColor Red
     }
 }
 
 function Test-ApiHealth {
     <#
     .SYNOPSIS
-        Checks if all 3 PAMlab APIs are reachable.
+        Checks if all PAMlab APIs are reachable.
     #>
     [CmdletBinding()]
     param(
@@ -281,14 +306,14 @@ function Test-ApiHealth {
         [string]$AzureAdUrl = "http://localhost:8452"
     )
 
-    Write-Host "`n🏥 Checking API health...`n" -ForegroundColor Cyan
+    Write-Host "`nChecking API health...`n" -ForegroundColor Cyan
 
     $allHealthy = $true
 
     foreach ($api in @(
-        @{ Name = "Fudo PAM";    Url = "$FudoUrl/api/v2/health" },
-        @{ Name = "Matrix42 ESM"; Url = "$M42Url/m42Services/api/health" },
-        @{ Name = "Active Directory"; Url = "$ADUrl/api/ad/health" },
+        @{ Name = "Fudo PAM"; Url = "$FudoUrl/api/v2/health" },
+        @{ Name = "Matrix42 ESM"; Url = "$M42Url/health" },
+        @{ Name = "Active Directory"; Url = "$ADUrl/health" },
         @{ Name = "Microsoft Entra ID"; Url = "$AzureAdUrl/health" }
     )) {
         try {
@@ -304,8 +329,6 @@ function Test-ApiHealth {
     return $allHealthy
 }
 
-Export-ModuleMember -Function Connect-PAMlab, Invoke-Fudo, Invoke-M42, Invoke-AD, Invoke-Entra, Write-Step, Test-ApiHealth, Switch-PAMlabEnv, Import-PAMlabConfig
-
 function Switch-PAMlabEnv {
     <#
     .SYNOPSIS
@@ -313,7 +336,7 @@ function Switch-PAMlabEnv {
     #>
     [CmdletBinding()]
     param(
-        [ValidateSet("dev","production")]
+        [ValidateSet("dev", "production")]
         [string]$Environment = "dev"
     )
 
@@ -322,10 +345,12 @@ function Switch-PAMlabEnv {
     } else {
         $script:ConfigFile = "$PSScriptRoot/config/.env"
         if (-not (Test-Path $script:ConfigFile)) {
-            Write-Host "❌ Production config not found! Copy config/production.env.template to config/.env" -ForegroundColor Red
+            Write-Host "[FAIL] Production config not found! Copy config/production.env.template to config/.env" -ForegroundColor Red
             return
         }
     }
 
     Connect-PAMlab -ConfigFile $script:ConfigFile
 }
+
+Export-ModuleMember -Function Connect-PAMlab, Invoke-Fudo, Invoke-M42, Invoke-AD, Invoke-Entra, Write-Step, Test-ApiHealth, Switch-PAMlabEnv, Import-PAMlabConfig
